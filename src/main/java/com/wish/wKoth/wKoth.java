@@ -16,6 +16,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class wKoth extends JavaPlugin implements Listener {
@@ -25,6 +26,7 @@ public class wKoth extends JavaPlugin implements Listener {
     private Player currentKingPlayer = null;
     private int captureTime = 0;
     private final HashMap<UUID, Integer> playerTime = new HashMap<>();
+    private HashMap<String, KothArena> koths;
 
     @Override
     public void onEnable() {
@@ -39,9 +41,10 @@ public class wKoth extends JavaPlugin implements Listener {
         getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth ha sido activado!");
 
         // Inicialización del plugin
+        koths = new HashMap<>();
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
-        loadLocations();
+        loadKoths();
     }
 
     @Override
@@ -69,6 +72,39 @@ public class wKoth extends JavaPlugin implements Listener {
         saveConfig();
     }
 
+    private void loadKoths() {
+        if (!getConfig().contains("koths")) return;
+
+        for (String kothId : getConfig().getConfigurationSection("koths").getKeys(false)) {
+            String name = getConfig().getString("koths." + kothId + ".name");
+            int duration = getConfig().getInt("koths." + kothId + ".duration");
+
+            KothArena arena = new KothArena(kothId, name, duration);
+
+            if (getConfig().contains("koths." + kothId + ".pos1")) {
+                arena.setPos1((Location) getConfig().get("koths." + kothId + ".pos1"));
+            }
+            if (getConfig().contains("koths." + kothId + ".pos2")) {
+                arena.setPos2((Location) getConfig().get("koths." + kothId + ".pos2"));
+            }
+
+            koths.put(kothId, arena);
+        }
+    }
+
+    private void saveKoths() {
+        for (Map.Entry<String, KothArena> entry : koths.entrySet()) {
+            String path = "koths." + entry.getKey() + ".";
+            KothArena arena = entry.getValue();
+
+            getConfig().set(path + "name", arena.getName());
+            getConfig().set(path + "duration", arena.getDuration());
+            getConfig().set(path + "pos1", arena.getPos1());
+            getConfig().set(path + "pos2", arena.getPos2());
+        }
+        saveConfig();
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
@@ -88,43 +124,52 @@ public class wKoth extends JavaPlugin implements Listener {
         }
 
         switch (args[0].toLowerCase()) {
-            case "start":
-                if (!player.hasPermission("wkoth.admin")) {
-                    player.sendMessage(getConfig().getString("messages.no-permission"));
+            case "create":
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth create <nombre>");
                     return true;
                 }
-                startKoth();
+                createKoth(player, args[1]);
+                break;
+            case "delete":
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth delete <nombre>");
+                    return true;
+                }
+                deleteKoth(player, args[1]);
+                break;
+            case "list":
+                listKoths(player);
+                break;
+            case "start":
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth start <nombre>");
+                    return true;
+                }
+                startKoth(args[1]);
                 break;
             case "stop":
-                if (!player.hasPermission("wkoth.admin")) {
-                    player.sendMessage(getConfig().getString("messages.no-permission"));
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth stop <nombre>");
                     return true;
                 }
-                stopKoth();
+                stopKoth(args[1]);
                 break;
             case "setpos1":
-                if (!player.hasPermission("wkoth.admin")) {
-                    player.sendMessage(getConfig().getString("messages.no-permission"));
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth setpos1 <nombre>");
                     return true;
                 }
-                pos1 = player.getLocation();
-                player.sendMessage(getConfig().getString("messages.pos1-set"));
-                saveLocations();
+                setPos1(player, args[1]);
                 break;
             case "setpos2":
-                if (!player.hasPermission("wkoth.admin")) {
-                    player.sendMessage(getConfig().getString("messages.no-permission"));
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth setpos2 <nombre>");
                     return true;
                 }
-                pos2 = player.getLocation();
-                player.sendMessage(getConfig().getString("messages.pos2-set"));
-                saveLocations();
+                setPos2(player, args[1]);
                 break;
             case "reload":
-                if (!player.hasPermission("wkoth.admin")) {
-                    player.sendMessage(getConfig().getString("messages.no-permission"));
-                    return true;
-                }
                 reloadConfiguration(player);
                 break;
             default:

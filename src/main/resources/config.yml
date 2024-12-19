@@ -1,9 +1,7 @@
 # wKoth Configuration
 
-# KoTH Settings
-koth:
-  # Duration in seconds
-  duration: 900
+# Global KoTH Settings
+settings:
   # Cooldown between KoTHs in seconds
   cooldown: 3600
   # Broadcast interval in seconds
@@ -12,17 +10,28 @@ koth:
 # Messages
 messages:
   prefix: "&8[&6KoTH&8] "
-  koth-start: "&aEl KoTH ha comenzado!"
-  koth-end: "&cEl KoTH ha terminado!"
-  koth-captured: "&6%player% ha capturado el KoTH!"
-  koth-control: "&e%player% está controlando el KoTH! &7(%time%)"
+  koth-start: "&aEl KoTH %koth% ha comenzado!"
+  koth-end: "&cEl KoTH %koth% ha terminado!"
+  koth-captured: "&6%player% ha capturado el KoTH %koth%!"
+  koth-control: "&e%player% está controlando el KoTH %koth%! &7(%time%)"
   no-permission: "&cNo tienes permiso para usar este comando!"
-  pos1-set: "&aPos1 establecida correctamente!"
-  pos2-set: "&aPos2 establecida correctamente!"
+  pos1-set: "&aPos1 establecida correctamente para el KoTH %koth%!"
+  pos2-set: "&aPos2 establecida correctamente para el KoTH %koth%!"
   config-reloaded: "&aLa configuración ha sido recargada correctamente!"
+  koth-created: "&aKoTH %koth% creado correctamente!"
+  koth-deleted: "&cKoTH %koth% eliminado correctamente!"
+  koth-not-found: "&cEl KoTH %koth% no existe!"
+  koth-already-exists: "&cEl KoTH %koth% ya existe!"
+  koth-list: "&6KoTHs disponibles: %koths%"
 
-# Rewards
-rewards:
-  commands:
-    - "give %player% diamond 64"
-    - "eco give %player% 10000"
+# Individual KoTH configurations
+koths:
+  example:
+    name: "Example"
+    duration: 900
+    pos1: null
+    pos2: null
+    rewards:
+      commands:
+        - "give %player% diamond 64"
+        - "eco give %player% 10000"
