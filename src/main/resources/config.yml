@@ -1,0 +1,27 @@
+# wKoth Configuration
+
+# KoTH Settings
+koth:
+  # Duration in seconds
+  duration: 900
+  # Cooldown between KoTHs in seconds
+  cooldown: 3600
+  # Broadcast interval in seconds
+  broadcast-interval: 60
+
+# Messages
+messages:
+  prefix: "&8[&6KoTH&8] "
+  koth-start: "&aEl KoTH ha comenzado!"
+  koth-end: "&cEl KoTH ha terminado!"
+  koth-captured: "&6%player% ha capturado el KoTH!"
+  koth-control: "&e%player% está controlando el KoTH! &7(%time%)"
+  no-permission: "&cNo tienes permiso para usar este comando!"
+  pos1-set: "&aPos1 establecida correctamente!"
+  pos2-set: "&aPos2 establecida correctamente!"
+
+# Rewards
+rewards:
+  commands:
+    - "give %player% diamond 64"
+    - "eco give %player% 10000"

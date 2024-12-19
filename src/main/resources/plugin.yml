@@ -1,0 +1,10 @@
+name: wKoth
+version: 1.0.0
+main: com.wish.wKoth.wKoth
+author: wwishh
+description: A simple but powerful KoTH plugin for PrisonOP
+
+commands:
+  koth:
+    description: Main command for KoTH plugin
+    usage: /<command> <start|stop|setpos1|setpos2|reload>
