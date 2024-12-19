@@ -8,3 +8,11 @@ commands:
   koth:
     description: Main command for KoTH plugin
     usage: /<command> <start|stop|setpos1|setpos2|reload>
+
+permissions:
+  wkoth.admin:
+    description: Gives access to all wKoth admin commands
+    default: op
+  wkoth.use:
+    description: Allows players to participate in KoTH events
+    default: true

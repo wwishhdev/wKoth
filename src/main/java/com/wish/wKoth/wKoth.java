@@ -28,6 +28,17 @@ public class wKoth extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
+        // Mostrar el ASCII art
+        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "\n" +
+                "███████╗██████╗ ██╗███████╗███╗   ██╗██████╗ ██╗  ██╗   ██╗██████╗ ██████╗ ██╗███████╗ ██████╗ ███╗   ██╗\n" +
+                "██╔════╝██╔══██╗██║██╔════╝████╗  ██║██╔══██╗██║  ╚██╗ ██╔╝██╔══██╗██╔══██╗██║██╔════╝██╔═══██╗████╗  ██║\n" +
+                "█████╗  ██████╔╝██║█████╗  ██╔██╗ ██║██║  ██║██║   ╚████╔╝ ██████╔╝██████╔╝██║███████╗██║   ██║██╔██╗ ██║\n" +
+                "██╔══╝  ██╔══██╗██║██╔══╝  ██║╚██╗██║██║  ██║██║    ╚██╔╝  ██╔═══╝ ██╔══██╗██║╚════██║██║   ██║██║╚██╗██║\n" +
+                "██║     ██║  ██║██║███████╗██║ ╚████║██████╔╝███████╗██║   ██║     ██║  ██║██║███████║╚██████╔╝██║ ╚████║\n" +
+                "╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝   ╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝ ╚═════╝ ╚═╝  ╚═══╝\n");
+        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth ha sido activado!");
+
+        // Inicialización del plugin
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(this, this);
         loadLocations();
@@ -35,6 +46,7 @@ public class wKoth extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        getServer().getConsoleSender().sendMessage(ChatColor.RED + "wKoth ha sido desactivado!");
         saveLocations();
     }
 
