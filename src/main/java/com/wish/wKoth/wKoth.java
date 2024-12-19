@@ -120,11 +120,33 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(getConfig().getString("messages.pos2-set"));
                 saveLocations();
                 break;
+            case "reload":
+                if (!player.hasPermission("wkoth.admin")) {
+                    player.sendMessage(getConfig().getString("messages.no-permission"));
+                    return true;
+                }
+                reloadConfiguration(player);
+                break;
             default:
                 sendHelp(player);
                 break;
         }
         return true;
+    }
+
+    private void reloadConfiguration(Player player) {
+        // Guardar las ubicaciones actuales antes de recargar
+        saveLocations();
+
+        // Recargar la configuración
+        reloadConfig();
+
+        // Cargar las ubicaciones después de recargar
+        loadLocations();
+
+        // Enviar mensaje de confirmación
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&',
+                getConfig().getString("messages.config-reloaded")));
     }
 
     @EventHandler

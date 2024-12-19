@@ -19,6 +19,7 @@ messages:
   no-permission: "&cNo tienes permiso para usar este comando!"
   pos1-set: "&aPos1 establecida correctamente!"
   pos2-set: "&aPos2 establecida correctamente!"
+  config-reloaded: "&aLa configuración ha sido recargada correctamente!"
 
 # Rewards
 rewards:
