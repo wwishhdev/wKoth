@@ -1,18 +1,12 @@
 name: wKoth
 version: 1.0.0
 main: com.wish.wKoth.wKoth
-author: wwishh
-description: A simple but powerful KoTH plugin for PrisonOP
-
+description: Plugin de KoTH con soporte para múltiples arenas
 commands:
   koth:
-    description: Main command for KoTH plugin
-    usage: /<command> <start|stop|setpos1|setpos2|reload>
-
+    description: Comando principal del plugin wKoth
+    usage: /koth <subcomando>
 permissions:
   wkoth.admin:
-    description: Gives access to all wKoth admin commands
+    description: Permite usar todos los comandos administrativos del KoTH
     default: op
-  wkoth.use:
-    description: Allows players to participate in KoTH events
-    default: true

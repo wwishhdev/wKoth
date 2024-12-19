@@ -20,11 +20,6 @@ import java.util.Map;
 import java.util.UUID;
 
 public class wKoth extends JavaPlugin implements Listener {
-    private Location pos1;
-    private Location pos2;
-    private boolean isActive = false;
-    private Player currentKingPlayer = null;
-    private int captureTime = 0;
     private final HashMap<UUID, Integer> playerTime = new HashMap<>();
     private HashMap<String, KothArena> koths;
 
@@ -38,7 +33,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 "██║███╗██║██╔═██╗ ██║   ██║   ██║   ██╔══██║\n" +
                 "╚███╔███╔╝██║  ██╗╚██████╔╝   ██║   ██║  ██║\n" +
                 " ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝\n");
-        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth ha sido activado!");
+        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth ha sido activado! by wwishh <3");
 
         // Inicialización del plugin
         koths = new HashMap<>();
@@ -49,27 +44,16 @@ public class wKoth extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
-        getServer().getConsoleSender().sendMessage(ChatColor.RED + "wKoth ha sido desactivado!");
-        saveLocations();
-    }
+        // Detener todos los KoTHs activos
+        for (KothArena arena : koths.values()) {
+            if (arena.isActive()) {
+                stopKoth(arena.getId());
+            }
+        }
 
-    private void loadLocations() {
-        if (getConfig().contains("locations.pos1")) {
-            pos1 = (Location) getConfig().get("locations.pos1");
-        }
-        if (getConfig().contains("locations.pos2")) {
-            pos2 = (Location) getConfig().get("locations.pos2");
-        }
-    }
-
-    private void saveLocations() {
-        if (pos1 != null) {
-            getConfig().set("locations.pos1", pos1);
-        }
-        if (pos2 != null) {
-            getConfig().set("locations.pos2", pos2);
-        }
-        saveConfig();
+        // Guardar configuración
+        saveKoths();
+        getServer().getConsoleSender().sendMessage(ChatColor.RED + "wKoth ha sido desactivado! by wwishh <3");
     }
 
     private void loadKoths() {
@@ -257,14 +241,19 @@ public class wKoth extends JavaPlugin implements Listener {
     }
 
     private void reloadConfiguration(Player player) {
-        // Guardar las ubicaciones actuales antes de recargar
-        saveLocations();
+        // Detener todos los KoTHs activos
+        for (KothArena arena : koths.values()) {
+            if (arena.isActive()) {
+                stopKoth(arena.getId());
+            }
+        }
 
         // Recargar la configuración
         reloadConfig();
 
-        // Cargar las ubicaciones después de recargar
-        loadLocations();
+        // Recargar los KoTHs
+        koths.clear();
+        loadKoths();
 
         // Enviar mensaje de confirmación
         player.sendMessage(ChatColor.translateAlternateColorCodes('&',
@@ -294,19 +283,6 @@ public class wKoth extends JavaPlugin implements Listener {
                 arena.setCaptureTime(0);
             }
         }
-    }
-
-    private boolean isInside(Location loc) {
-        double minX = Math.min(pos1.getX(), pos2.getX());
-        double minY = Math.min(pos1.getY(), pos2.getY());
-        double minZ = Math.min(pos1.getZ(), pos2.getZ());
-        double maxX = Math.max(pos1.getX(), pos2.getX());
-        double maxY = Math.max(pos1.getY(), pos2.getY());
-        double maxZ = Math.max(pos1.getZ(), pos2.getZ());
-
-        return loc.getX() >= minX && loc.getX() <= maxX &&
-                loc.getY() >= minY && loc.getY() <= maxY &&
-                loc.getZ() >= minZ && loc.getZ() <= maxZ;
     }
 
     private void startKoth(String id) {
