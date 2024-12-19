@@ -1,12 +1,19 @@
 name: wKoth
 version: 1.0.0
 main: com.wish.wKoth.wKoth
-description: Plugin de KoTH con soporte para múltiples arenas
+author: wwishh
+description: Sistema de KoTH avanzado con soporte para múltiples arenas
+
 commands:
   koth:
-    description: Comando principal del plugin wKoth
+    description: Comando principal del sistema KoTH
     usage: /koth <subcomando>
+    aliases: [wkoth]
+
 permissions:
   wkoth.admin:
     description: Permite usar todos los comandos administrativos del KoTH
     default: op
+  wkoth.use:
+    description: Permite participar en eventos KoTH
+    default: true

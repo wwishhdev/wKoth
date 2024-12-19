@@ -1,37 +1,91 @@
-# wKoth Configuration
+# ██╗    ██╗██╗  ██╗ ██████╗ ████████╗██╗  ██╗
+# ██║    ██║██║ ██╔╝██╔═══██╗╚══██╔══╝██║  ██║
+# ██║ █╗ ██║█████╔╝ ██║   ██║   ██║   ███████║
+# ██║███╗██║██╔═██╗ ██║   ██║   ██║   ██╔══██║
+# ╚███╔███╔╝██║  ██╗╚██████╔╝   ██║   ██║  ██║
+#  ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝
+#
+# Plugin desarrollado por wwishh
+# Version: 1.0.0
+# Discord: wwishh
+# GitHub: github.com/wwishh777
 
-# Global KoTH Settings
+############################################################
+# +------------------------------------------------------+ #
+# |                   Configuración Global               | #
+# +------------------------------------------------------+ #
+############################################################
+
 settings:
-  # Cooldown between KoTHs in seconds
+  # Tiempo de espera entre KoTHs (en segundos)
+  # Default: 3600 (1 hora)
   cooldown: 3600
-  # Broadcast interval in seconds
+
+  # Intervalo de mensajes de broadcast (en segundos)
+  # Default: 60 (1 minuto)
   broadcast-interval: 60
 
-# Messages
+############################################################
+# +------------------------------------------------------+ #
+# |                      Mensajes                        | #
+# +------------------------------------------------------+ #
+############################################################
+
 messages:
   prefix: "&8[&6KoTH&8] "
-  koth-start: "&aEl KoTH %koth% ha comenzado!"
-  koth-end: "&cEl KoTH %koth% ha terminado!"
-  koth-captured: "&6%player% ha capturado el KoTH %koth%!"
-  koth-control: "&e%player% está controlando el KoTH %koth%! &7(%time%)"
-  no-permission: "&cNo tienes permiso para usar este comando!"
-  pos1-set: "&aPos1 establecida correctamente para el KoTH %koth%!"
-  pos2-set: "&aPos2 establecida correctamente para el KoTH %koth%!"
-  config-reloaded: "&aLa configuración ha sido recargada correctamente!"
-  koth-created: "&aKoTH %koth% creado correctamente!"
-  koth-deleted: "&cKoTH %koth% eliminado correctamente!"
-  koth-not-found: "&cEl KoTH %koth% no existe!"
-  koth-already-exists: "&cEl KoTH %koth% ya existe!"
-  koth-list: "&6KoTHs disponibles: %koths%"
 
-# Individual KoTH configurations
+  # Mensajes de eventos
+  koth-start: "&aEl KoTH &6%koth% &aha comenzado!"
+  koth-end: "&cEl KoTH &6%koth% &cha terminado!"
+  koth-captured: "&6%player% &eha capturado el KoTH &6%koth%&e!"
+  koth-control: "&e%player% &7está controlando el KoTH &6%koth%&7! &8(&f%time%&8)"
+
+  # Mensajes de administración
+  no-permission: "&c✘ &7No tienes permiso para usar este comando!"
+  pos1-set: "&a✔ &7Pos1 establecida correctamente para el KoTH &6%koth%&7!"
+  pos2-set: "&a✔ &7Pos2 establecida correctamente para el KoTH &6%koth%&7!"
+  config-reloaded: "&a✔ &7La configuración ha sido recargada correctamente!"
+
+  # Mensajes de gestión de KoTHs
+  koth-created: "&a✔ &7KoTH &6%koth% &7creado correctamente!"
+  koth-deleted: "&c✘ &7KoTH &6%koth% &7eliminado correctamente!"
+  koth-not-found: "&c✘ &7El KoTH &6%koth% &7no existe!"
+  koth-already-exists: "&c✘ &7El KoTH &6%koth% &7ya existe!"
+  koth-list: "&6KoTHs disponibles: &f%koths%"
+
+############################################################
+# +------------------------------------------------------+ #
+# |                  KoTHs Configurados                  | #
+# +------------------------------------------------------+ #
+############################################################
+
 koths:
+  # Ejemplo de KoTH
   example:
+    # Nombre mostrado del KoTH
     name: "Example"
+
+    # Duración en segundos
+    # Default: 900 (15 minutos)
     duration: 900
+
+    # Posiciones del KoTH (se establecen con comandos)
     pos1: null
     pos2: null
+
+    # Recompensas al ganar
     rewards:
       commands:
         - "give %player% diamond 64"
         - "eco give %player% 10000"
+        - "broadcast &a¡%player% ha ganado un kit de diamante por ganar el KoTH!"
+
+############################################################
+#                                                          #
+#                    Fin de la configuración               #
+#                                                          #
+# Para más información o soporte:                          #
+# - Discord: wwishh                                        #
+# - GitHub: github.com/wwishh777                           #
+#                                                          #
+############################################################
