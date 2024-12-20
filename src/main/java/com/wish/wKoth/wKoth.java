@@ -17,12 +17,10 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.io.IOException;
 import java.io.*;
-import java.util.ArrayList;
 
 public class wKoth extends JavaPlugin implements Listener {
     private final HashMap<UUID, Integer> playerTime = new HashMap<>();
@@ -373,60 +371,56 @@ public class wKoth extends JavaPlugin implements Listener {
             // Guardar la configuración actual
             File configFile = new File(getDataFolder(), "config.yml");
 
+            // Crear una nueva configuración YAML
+            YamlConfiguration config = new YamlConfiguration();
+
+            // Copiar todos los valores de la configuración actual
+            for (String key : getConfig().getKeys(true)) {
+                config.set(key, getConfig().get(key));
+            }
+
             // Cargar el template con comentarios
             InputStream defaultStream = getResource("config.yml");
             if (defaultStream != null) {
-                // Leer el template
                 BufferedReader reader = new BufferedReader(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
-                List<String> lines = new ArrayList<>();
-                String line;
-
-                // Leer todas las líneas del template
-                while ((line = reader.readLine()) != null) {
-                    lines.add(line);
-                }
-                reader.close();
-
-                // Crear el nuevo archivo
                 PrintWriter writer = new PrintWriter(new OutputStreamWriter(
                         new FileOutputStream(configFile), StandardCharsets.UTF_8));
 
-                // Escribir los comentarios y el header
-                boolean passedHeader = false;
-                for (String templateLine : lines) {
-                    if (templateLine.startsWith("#") || templateLine.trim().isEmpty()) {
-                        writer.println(templateLine);
+                // Escribir el header con comentarios
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("#") || line.trim().isEmpty()) {
+                        writer.println(line);
                     } else {
-                        passedHeader = true;
                         break;
                     }
                 }
+                reader.close();
 
-                // Escribir la configuración actual pero manteniendo el formato
-                YamlConfiguration config = getConfig();
-
-                // Escribir las secciones principales manteniendo el formato
+                // Escribir la configuración actual
                 writer.println("settings:");
                 writer.println("  cooldown: " + config.getInt("settings.cooldown", 3600));
                 writer.println("  broadcast-interval: " + config.getInt("settings.broadcast-interval", 60));
                 writer.println();
 
-                // Escribir los mensajes
+                // Escribir mensajes
                 writer.println("messages:");
-                for (String key : config.getConfigurationSection("messages").getKeys(false)) {
-                    writer.println("  " + key + ": '" + config.getString("messages." + key) + "'");
+                if (config.getConfigurationSection("messages") != null) {
+                    for (String key : config.getConfigurationSection("messages").getKeys(false)) {
+                        writer.println("  " + key + ": '" + config.getString("messages." + key) + "'");
+                    }
                 }
                 writer.println();
 
-                // Escribir los KoTHs
+                // Escribir KoTHs
                 writer.println("koths:");
-                if (config.contains("koths")) {
+                if (config.getConfigurationSection("koths") != null) {
                     for (String kothId : config.getConfigurationSection("koths").getKeys(false)) {
                         writer.println("  " + kothId + ":");
-                        writer.println("    name: " + config.getString("koths." + kothId + ".name"));
+                        writer.println("    name: \"" + config.getString("koths." + kothId + ".name") + "\"");
                         writer.println("    duration: " + config.getInt("koths." + kothId + ".duration"));
 
-                        // Escribir las posiciones si existen
+                        // Escribir posiciones si existen
                         if (config.contains("koths." + kothId + ".pos1")) {
                             writer.println("    pos1: " + config.get("koths." + kothId + ".pos1"));
                         }
@@ -434,11 +428,13 @@ public class wKoth extends JavaPlugin implements Listener {
                             writer.println("    pos2: " + config.get("koths." + kothId + ".pos2"));
                         }
 
-                        // Escribir las recompensas
-                        writer.println("    rewards:");
-                        writer.println("      commands:");
-                        for (String command : config.getStringList("koths." + kothId + ".rewards.commands")) {
-                            writer.println("        - '" + command + "'");
+                        // Escribir recompensas
+                        if (config.contains("koths." + kothId + ".rewards.commands")) {
+                            writer.println("    rewards:");
+                            writer.println("      commands:");
+                            for (String command : config.getStringList("koths." + kothId + ".rewards.commands")) {
+                                writer.println("        - \"" + command + "\"");
+                            }
                         }
                     }
                 }
