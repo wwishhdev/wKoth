@@ -112,25 +112,30 @@ public class wKoth extends JavaPlugin implements Listener {
         try {
             if (locationString == null || locationString.trim().isEmpty()) return null;
 
-            // Extraer los valores del string de ubicación
-            String worldName = locationString.substring(locationString.indexOf("world=") + 6, locationString.indexOf(","));
-            worldName = worldName.substring(worldName.indexOf("name=") + 5, worldName.indexOf("}"));
+            // Formato esperado: Location{world=CraftWorld{name=world},x=102.69,y=79.0,z=152.30,pitch=87.47,yaw=53.84}
+            String worldPart = locationString.substring(locationString.indexOf("name=") + 5, locationString.indexOf("},x="));
+            String xPart = locationString.substring(locationString.indexOf("x=") + 2, locationString.indexOf(",y="));
+            String yPart = locationString.substring(locationString.indexOf("y=") + 2, locationString.indexOf(",z="));
+            String zPart = locationString.substring(locationString.indexOf("z=") + 2, locationString.indexOf(",pitch="));
+            String pitchPart = locationString.substring(locationString.indexOf("pitch=") + 6, locationString.indexOf(",yaw="));
+            String yawPart = locationString.substring(locationString.indexOf("yaw=") + 4, locationString.indexOf("}"));
 
-            double x = Double.parseDouble(locationString.substring(locationString.indexOf("x=") + 2, locationString.indexOf(",y=")));
-            double y = Double.parseDouble(locationString.substring(locationString.indexOf("y=") + 2, locationString.indexOf(",z=")));
-            double z = Double.parseDouble(locationString.substring(locationString.indexOf("z=") + 2, locationString.indexOf(",pitch=")));
-            float pitch = Float.parseFloat(locationString.substring(locationString.indexOf("pitch=") + 6, locationString.indexOf(",yaw=")));
-            float yaw = Float.parseFloat(locationString.substring(locationString.indexOf("yaw=") + 4, locationString.indexOf("}")));
-
-            World world = Bukkit.getWorld(worldName);
+            World world = Bukkit.getWorld(worldPart);
             if (world == null) {
-                getLogger().warning("No se pudo encontrar el mundo: " + worldName);
+                getLogger().warning("No se pudo encontrar el mundo: " + worldPart);
                 return null;
             }
 
+            double x = Double.parseDouble(xPart);
+            double y = Double.parseDouble(yPart);
+            double z = Double.parseDouble(zPart);
+            float pitch = Float.parseFloat(pitchPart);
+            float yaw = Float.parseFloat(yawPart);
+
             return new Location(world, x, y, z, yaw, pitch);
         } catch (Exception e) {
-            getLogger().warning("Error al deserializar ubicación: " + e.getMessage());
+            getLogger().warning("Error al deserializar ubicación '" + locationString + "': " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
     }
@@ -142,10 +147,29 @@ public class wKoth extends JavaPlugin implements Listener {
 
             getConfig().set(path + "name", arena.getName());
             getConfig().set(path + "duration", arena.getDuration());
-            getConfig().set(path + "pos1", arena.getPos1());
-            getConfig().set(path + "pos2", arena.getPos2());
+
+            // Guardar ubicaciones
+            if (arena.getPos1() != null) {
+                Location pos1 = arena.getPos1();
+                getConfig().set(path + "pos1", serializeLocation(pos1));
+            }
+            if (arena.getPos2() != null) {
+                Location pos2 = arena.getPos2();
+                getConfig().set(path + "pos2", serializeLocation(pos2));
+            }
         }
         saveConfigWithComments();
+    }
+
+    private String serializeLocation(Location loc) {
+        if (loc == null) return null;
+        return String.format("Location{world=CraftWorld{name=%s},x=%.2f,y=%.2f,z=%.2f,pitch=%.2f,yaw=%.2f}",
+                loc.getWorld().getName(),
+                loc.getX(),
+                loc.getY(),
+                loc.getZ(),
+                loc.getPitch(),
+                loc.getYaw());
     }
 
     @Override
