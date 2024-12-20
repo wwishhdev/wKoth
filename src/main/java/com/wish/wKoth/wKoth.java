@@ -1,7 +1,9 @@
 package com.wish.wKoth;
 
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -68,14 +70,68 @@ public class wKoth extends JavaPlugin implements Listener {
 
             KothArena arena = new KothArena(kothId, name, duration);
 
+            // Cargar pos1
             if (getConfig().contains("koths." + kothId + ".pos1")) {
-                arena.setPos1((Location) getConfig().get("koths." + kothId + ".pos1"));
+                try {
+                    if (getConfig().get("koths." + kothId + ".pos1") instanceof Location) {
+                        arena.setPos1((Location) getConfig().get("koths." + kothId + ".pos1"));
+                    } else {
+                        String locationString = getConfig().getString("koths." + kothId + ".pos1");
+                        Location location = deserializeLocation(locationString);
+                        if (location != null) {
+                            arena.setPos1(location);
+                        }
+                    }
+                } catch (Exception e) {
+                    getLogger().warning("Error al cargar pos1 para el KoTH " + kothId + ": " + e.getMessage());
+                }
             }
+
+            // Cargar pos2
             if (getConfig().contains("koths." + kothId + ".pos2")) {
-                arena.setPos2((Location) getConfig().get("koths." + kothId + ".pos2"));
+                try {
+                    if (getConfig().get("koths." + kothId + ".pos2") instanceof Location) {
+                        arena.setPos2((Location) getConfig().get("koths." + kothId + ".pos2"));
+                    } else {
+                        String locationString = getConfig().getString("koths." + kothId + ".pos2");
+                        Location location = deserializeLocation(locationString);
+                        if (location != null) {
+                            arena.setPos2(location);
+                        }
+                    }
+                } catch (Exception e) {
+                    getLogger().warning("Error al cargar pos2 para el KoTH " + kothId + ": " + e.getMessage());
+                }
             }
 
             koths.put(kothId, arena);
+        }
+    }
+
+    private Location deserializeLocation(String locationString) {
+        try {
+            if (locationString == null || locationString.trim().isEmpty()) return null;
+
+            // Extraer los valores del string de ubicación
+            String worldName = locationString.substring(locationString.indexOf("world=") + 6, locationString.indexOf(","));
+            worldName = worldName.substring(worldName.indexOf("name=") + 5, worldName.indexOf("}"));
+
+            double x = Double.parseDouble(locationString.substring(locationString.indexOf("x=") + 2, locationString.indexOf(",y=")));
+            double y = Double.parseDouble(locationString.substring(locationString.indexOf("y=") + 2, locationString.indexOf(",z=")));
+            double z = Double.parseDouble(locationString.substring(locationString.indexOf("z=") + 2, locationString.indexOf(",pitch=")));
+            float pitch = Float.parseFloat(locationString.substring(locationString.indexOf("pitch=") + 6, locationString.indexOf(",yaw=")));
+            float yaw = Float.parseFloat(locationString.substring(locationString.indexOf("yaw=") + 4, locationString.indexOf("}")));
+
+            World world = Bukkit.getWorld(worldName);
+            if (world == null) {
+                getLogger().warning("No se pudo encontrar el mundo: " + worldName);
+                return null;
+            }
+
+            return new Location(world, x, y, z, yaw, pitch);
+        } catch (Exception e) {
+            getLogger().warning("Error al deserializar ubicación: " + e.getMessage());
+            return null;
         }
     }
 
