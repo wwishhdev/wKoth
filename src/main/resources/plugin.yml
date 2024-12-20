@@ -6,14 +6,11 @@ description: Sistema de KoTH avanzado con soporte para múltiples arenas
 
 commands:
   koth:
-    description: Comando principal del sistema KoTH
-    usage: /koth <subcomando>
-    aliases: [wkoth]
+    description: Comando principal del plugin wKoth
+    usage: /<command> [create|set]
+    permission: wkoth.admin
 
 permissions:
   wkoth.admin:
-    description: Permite usar todos los comandos administrativos del KoTH
+    description: Permite usar todos los comandos del plugin
     default: op
-  wkoth.use:
-    description: Permite participar en eventos KoTH
-    default: true
