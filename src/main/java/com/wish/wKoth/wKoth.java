@@ -11,7 +11,9 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
 import java.util.UUID;
@@ -21,6 +23,13 @@ public class wKoth extends JavaPlugin implements Listener {
     private HashMap<UUID, Location> pos2 = new HashMap<>();
     private HashMap<String, Location[]> koths = new HashMap<>(); // Almacena los KoTHs por nombre
     private HashMap<UUID, String> creatingKoth = new HashMap<>(); // Almacena qué KoTH está creando cada jugador
+
+    // Variables para el sistema de captura
+    private HashMap<String, Boolean> activeKoths = new HashMap<>();
+    private HashMap<String, Player> capturingPlayers = new HashMap<>();
+    private HashMap<String, Integer> kothTimers = new HashMap<>();
+    private HashMap<String, BukkitRunnable> kothTasks = new HashMap<>();
+    private final int CAPTURE_TIME = 300; // 5 minutos en segundos
 
     @Override
     public void onEnable() {
@@ -40,6 +49,10 @@ public class wKoth extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        // Detener todos los KoTHs activos
+        for (String kothName : activeKoths.keySet()) {
+            stopKoth(kothName);
+        }
         getServer().getConsoleSender().sendMessage(ChatColor.RED + "wKoth ha sido desactivado! by wwishh <3");
     }
 
@@ -64,6 +77,8 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.YELLOW + "/koth set - Establece el KoTH en la zona seleccionada");
                 player.sendMessage(ChatColor.YELLOW + "/koth list - Muestra la lista de KoTHs");
                 player.sendMessage(ChatColor.YELLOW + "/koth delete <nombre> - Elimina un KoTH");
+                player.sendMessage(ChatColor.YELLOW + "/koth start <nombre> - Inicia un KoTH");
+                player.sendMessage(ChatColor.YELLOW + "/koth stop <nombre> - Detiene un KoTH");
                 return true;
             }
 
@@ -126,6 +141,45 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
+            if (args[0].equalsIgnoreCase("start")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth start <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(ChatColor.RED + "No existe un KoTH con ese nombre!");
+                    return true;
+                }
+
+                if (activeKoths.containsKey(kothName) && activeKoths.get(kothName)) {
+                    player.sendMessage(ChatColor.RED + "¡Este KoTH ya está activo!");
+                    return true;
+                }
+
+                startKoth(kothName);
+                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' iniciado!");
+                return true;
+            }
+
+            if (args[0].equalsIgnoreCase("stop")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth stop <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!activeKoths.containsKey(kothName) || !activeKoths.get(kothName)) {
+                    player.sendMessage(ChatColor.RED + "¡Este KoTH no está activo!");
+                    return true;
+                }
+
+                stopKoth(kothName);
+                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' detenido!");
+                return true;
+            }
+
             if (args[0].equalsIgnoreCase("delete")) {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso correcto: /koth delete <nombre>");
@@ -148,6 +202,107 @@ public class wKoth extends JavaPlugin implements Listener {
 
     private String formatLocation(Location loc) {
         return String.format("%.1f, %.1f, %.1f", loc.getX(), loc.getY(), loc.getZ());
+    }
+
+    private void startKoth(String kothName) {
+        activeKoths.put(kothName, true);
+        kothTimers.put(kothName, CAPTURE_TIME);
+
+        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
+        getServer().broadcastMessage(ChatColor.YELLOW + "¡El KoTH '" + kothName + "' ha comenzado!");
+        getServer().broadcastMessage(ChatColor.YELLOW + "¡Tiempo restante: " + formatTime(CAPTURE_TIME) + "!");
+        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
+
+        BukkitRunnable task = new BukkitRunnable() {
+            @Override
+            public void run() {
+                int timeLeft = kothTimers.get(kothName);
+
+                if (timeLeft <= 0) {
+                    Player winner = capturingPlayers.get(kothName);
+                    if (winner != null) {
+                        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
+                        getServer().broadcastMessage(ChatColor.GREEN + "¡" + winner.getName() + " ha ganado el KoTH '" + kothName + "'!");
+                        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
+                    }
+                    stopKoth(kothName);
+                    return;
+                }
+
+                if (timeLeft % 30 == 0) { // Mensaje cada 30 segundos
+                    getServer().broadcastMessage(ChatColor.YELLOW + "Tiempo restante del KoTH '" + kothName + "': " + formatTime(timeLeft));
+                }
+
+                kothTimers.put(kothName, timeLeft - 1);
+            }
+        };
+
+        task.runTaskTimer(this, 20L, 20L); // Ejecutar cada segundo
+        kothTasks.put(kothName, task);
+    }
+
+    private String formatTime(int seconds) {
+        int minutes = seconds / 60;
+        int secs = seconds % 60;
+        return String.format("%02d:%02d", minutes, secs);
+    }
+
+    private void stopKoth(String kothName) {
+        activeKoths.put(kothName, false);
+        capturingPlayers.remove(kothName);
+        kothTimers.remove(kothName);
+
+        if (kothTasks.containsKey(kothName)) {
+            kothTasks.get(kothName).cancel();
+            kothTasks.remove(kothName);
+        }
+
+        getServer().broadcastMessage(ChatColor.RED + "¡El KoTH '" + kothName + "' ha terminado!");
+    }
+
+    private boolean isInKoth(Player player, String kothName) {
+        if (!koths.containsKey(kothName)) return false;
+
+        Location[] locs = koths.get(kothName);
+        Location loc = player.getLocation();
+
+        double minX = Math.min(locs[0].getX(), locs[1].getX());
+        double minY = Math.min(locs[0].getY(), locs[1].getY());
+        double minZ = Math.min(locs[0].getZ(), locs[1].getZ());
+        double maxX = Math.max(locs[0].getX(), locs[1].getX());
+        double maxY = Math.max(locs[0].getY(), locs[1].getY());
+        double maxZ = Math.max(locs[0].getZ(), locs[1].getZ());
+
+        return loc.getX() >= minX && loc.getX() <= maxX &&
+                loc.getY() >= minY && loc.getY() <= maxY &&
+                loc.getZ() >= minZ && loc.getZ() <= maxZ;
+    }
+
+    @EventHandler
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+
+        for (String kothName : activeKoths.keySet()) {
+            if (!activeKoths.get(kothName)) continue;
+
+            boolean wasInKoth = capturingPlayers.containsKey(kothName) &&
+                    capturingPlayers.get(kothName).equals(player);
+            boolean isInKoth = isInKoth(player, kothName);
+
+            if (isInKoth && !wasInKoth) {
+                // Jugador entró al KoTH
+                if (!capturingPlayers.containsKey(kothName)) {
+                    capturingPlayers.put(kothName, player);
+                    getServer().broadcastMessage(ChatColor.YELLOW + player.getName() +
+                            " está capturando el KoTH '" + kothName + "'!");
+                }
+            } else if (!isInKoth && wasInKoth) {
+                // Jugador salió del KoTH
+                capturingPlayers.remove(kothName);
+                getServer().broadcastMessage(ChatColor.RED + player.getName() +
+                        " ha perdido el control del KoTH '" + kothName + "'!");
+            }
+        }
     }
 
     @EventHandler
