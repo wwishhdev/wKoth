@@ -16,12 +16,13 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.io.IOException;
+import java.io.*;
+import java.util.ArrayList;
 
 public class wKoth extends JavaPlugin implements Listener {
     private final HashMap<UUID, Integer> playerTime = new HashMap<>();
@@ -175,9 +176,17 @@ public class wKoth extends JavaPlugin implements Listener {
             return;
         }
 
+        // Crear el KoTH con la configuración por defecto
+        getConfig().set("koths." + id + ".name", id);
+        getConfig().set("koths." + id + ".duration", getConfig().getInt("settings.duration", 900));
+        getConfig().set("koths." + id + ".rewards.commands", getConfig().getStringList("koths.example.rewards.commands"));
+
+        // Crear la arena
         KothArena arena = new KothArena(id, id, getConfig().getInt("settings.duration", 900));
         koths.put(id, arena);
-        saveKoths();
+
+        // Guardar la configuración manteniendo el formato
+        saveConfigWithComments();
 
         player.sendMessage(ChatColor.translateAlternateColorCodes('&',
                 getConfig().getString("messages.koth-created").replace("%koth%", id)));
@@ -360,30 +369,82 @@ public class wKoth extends JavaPlugin implements Listener {
     }
 
     private void saveConfigWithComments() {
-        // Guardar la configuración actual
-        saveConfig();
-
-        // Recargar el archivo de configuración por defecto
-        File configFile = new File(getDataFolder(), "config.yml");
-        YamlConfiguration defaultConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(getResource("config.yml")));
-
         try {
-            // Combinar los comentarios del archivo por defecto con los valores actuales
-            List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
-            PrintWriter writer = new PrintWriter(configFile, "UTF-8");
+            // Guardar la configuración actual
+            File configFile = new File(getDataFolder(), "config.yml");
 
-            // Escribir el header (ASCII art y comentarios iniciales)
-            for (String line : defaultConfig.saveToString().split("\n")) {
-                if (line.startsWith("#")) {
-                    writer.println(line);
-                } else {
-                    break;
+            // Cargar el template con comentarios
+            InputStream defaultStream = getResource("config.yml");
+            if (defaultStream != null) {
+                // Leer el template
+                BufferedReader reader = new BufferedReader(new InputStreamReader(defaultStream, StandardCharsets.UTF_8));
+                List<String> lines = new ArrayList<>();
+                String line;
+
+                // Leer todas las líneas del template
+                while ((line = reader.readLine()) != null) {
+                    lines.add(line);
                 }
-            }
+                reader.close();
 
-            // Escribir el resto de la configuración
-            writer.println(getConfig().saveToString());
-            writer.close();
+                // Crear el nuevo archivo
+                PrintWriter writer = new PrintWriter(new OutputStreamWriter(
+                        new FileOutputStream(configFile), StandardCharsets.UTF_8));
+
+                // Escribir los comentarios y el header
+                boolean passedHeader = false;
+                for (String templateLine : lines) {
+                    if (templateLine.startsWith("#") || templateLine.trim().isEmpty()) {
+                        writer.println(templateLine);
+                    } else {
+                        passedHeader = true;
+                        break;
+                    }
+                }
+
+                // Escribir la configuración actual pero manteniendo el formato
+                YamlConfiguration config = getConfig();
+
+                // Escribir las secciones principales manteniendo el formato
+                writer.println("settings:");
+                writer.println("  cooldown: " + config.getInt("settings.cooldown", 3600));
+                writer.println("  broadcast-interval: " + config.getInt("settings.broadcast-interval", 60));
+                writer.println();
+
+                // Escribir los mensajes
+                writer.println("messages:");
+                for (String key : config.getConfigurationSection("messages").getKeys(false)) {
+                    writer.println("  " + key + ": '" + config.getString("messages." + key) + "'");
+                }
+                writer.println();
+
+                // Escribir los KoTHs
+                writer.println("koths:");
+                if (config.contains("koths")) {
+                    for (String kothId : config.getConfigurationSection("koths").getKeys(false)) {
+                        writer.println("  " + kothId + ":");
+                        writer.println("    name: " + config.getString("koths." + kothId + ".name"));
+                        writer.println("    duration: " + config.getInt("koths." + kothId + ".duration"));
+
+                        // Escribir las posiciones si existen
+                        if (config.contains("koths." + kothId + ".pos1")) {
+                            writer.println("    pos1: " + config.get("koths." + kothId + ".pos1"));
+                        }
+                        if (config.contains("koths." + kothId + ".pos2")) {
+                            writer.println("    pos2: " + config.get("koths." + kothId + ".pos2"));
+                        }
+
+                        // Escribir las recompensas
+                        writer.println("    rewards:");
+                        writer.println("      commands:");
+                        for (String command : config.getStringList("koths." + kothId + ".rewards.commands")) {
+                            writer.println("        - '" + command + "'");
+                        }
+                    }
+                }
+
+                writer.close();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
