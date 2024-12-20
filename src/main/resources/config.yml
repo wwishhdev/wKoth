@@ -9,3 +9,22 @@
 # Version: 1.0.0
 # Discord: wwishh
 # GitHub: github.com/wwishh777
+
+# Configuración general
+settings:
+  capture-time: 300 # Tiempo en segundos (5 minutos)
+
+# Recompensas por KoTH
+rewards:
+  default: # Recompensas por defecto para todos los KoTHs
+    commands:
+      - "eco give %player% 1500"
+      - "tokens give %player% 15"
+      - "broadcast &a¡%player% ha ganado 1500 coins y 15 tokens por capturar el KoTH!"
+
+  # Recompensas específicas por KoTH (opcional)
+  especial:
+    commands:
+      - "eco give %player% 3000"
+      - "tokens give %player% 30"
+      - "broadcast &a¡%player% ha ganado 3000 coins y 30 tokens por capturar el KoTH especial!"

@@ -7,7 +7,7 @@ description: Sistema de KoTH avanzado con soporte para múltiples arenas
 commands:
   koth:
     description: Comando principal del plugin wKoth
-    usage: /<command> [create|set]
+    usage: /<command> [create|set|list|delete|start|stop|reload]
     permission: wkoth.admin
 
 permissions:

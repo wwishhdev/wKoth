@@ -16,6 +16,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.UUID;
 
 public class wKoth extends JavaPlugin implements Listener {
@@ -29,12 +30,18 @@ public class wKoth extends JavaPlugin implements Listener {
     private HashMap<String, Player> capturingPlayers = new HashMap<>();
     private HashMap<String, Integer> kothTimers = new HashMap<>();
     private HashMap<String, BukkitRunnable> kothTasks = new HashMap<>();
-    private final int CAPTURE_TIME = 300; // 5 minutos en segundos
+    private int CAPTURE_TIME = 300; // 5 minutos en segundos
 
     @Override
     public void onEnable() {
+        // Guardar config por defecto
+        saveDefaultConfig();
+
         // Registrar eventos
         getServer().getPluginManager().registerEvents(this, this);
+
+        // Actualizar CAPTURE_TIME desde config
+        CAPTURE_TIME = getConfig().getInt("settings.capture-time", 300);
 
         // Mostrar el ASCII art
         getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "\n" +
@@ -79,6 +86,18 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.YELLOW + "/koth delete <nombre> - Elimina un KoTH");
                 player.sendMessage(ChatColor.YELLOW + "/koth start <nombre> - Inicia un KoTH");
                 player.sendMessage(ChatColor.YELLOW + "/koth stop <nombre> - Detiene un KoTH");
+                return true;
+            }
+
+            if (args[0].equalsIgnoreCase("reload")) {
+                if (!sender.hasPermission("wkoth.admin")) {
+                    sender.sendMessage(ChatColor.RED + "No tienes permiso para usar este comando!");
+                    return true;
+                }
+
+                reloadConfig();
+                CAPTURE_TIME = getConfig().getInt("settings.capture-time", 300);
+                sender.sendMessage(ChatColor.GREEN + "¡Configuración recargada exitosamente!");
                 return true;
             }
 
@@ -204,6 +223,25 @@ public class wKoth extends JavaPlugin implements Listener {
         return String.format("%.1f, %.1f, %.1f", loc.getX(), loc.getY(), loc.getZ());
     }
 
+    private void giveRewards(Player player, String kothName) {
+        List<String> commands;
+
+        // Intentar obtener recompensas específicas del KoTH
+        if (getConfig().contains("rewards." + kothName)) {
+            commands = getConfig().getStringList("rewards." + kothName + ".commands");
+        } else {
+            // Usar recompensas por defecto
+            commands = getConfig().getStringList("rewards.default.commands");
+        }
+
+        // Ejecutar comandos de recompensa
+        for (String command : commands) {
+            command = command.replace("%player%", player.getName());
+            getServer().dispatchCommand(getServer().getConsoleSender(),
+                    ChatColor.translateAlternateColorCodes('&', command));
+        }
+    }
+
     private void startKoth(String kothName) {
         activeKoths.put(kothName, true);
         kothTimers.put(kothName, CAPTURE_TIME);
@@ -222,8 +260,12 @@ public class wKoth extends JavaPlugin implements Listener {
                     Player winner = capturingPlayers.get(kothName);
                     if (winner != null) {
                         getServer().broadcastMessage(ChatColor.GOLD + "=========================");
-                        getServer().broadcastMessage(ChatColor.GREEN + "¡" + winner.getName() + " ha ganado el KoTH '" + kothName + "'!");
+                        getServer().broadcastMessage(ChatColor.GREEN + "¡" + winner.getName() +
+                                " ha ganado el KoTH '" + kothName + "'!");
                         getServer().broadcastMessage(ChatColor.GOLD + "=========================");
+
+                        // Dar recompensas al ganador
+                        giveRewards(winner, kothName);
                     }
                     stopKoth(kothName);
                     return;
