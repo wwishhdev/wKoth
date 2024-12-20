@@ -297,7 +297,9 @@ public class wKoth extends JavaPlugin implements Listener {
                     return;
                 }
 
-                if (timeLeft % 30 == 0) {
+                // Usar el intervalo configurado para los anuncios
+                int announcementInterval = getConfig().getInt("settings.announcement-interval", 30);
+                if (timeLeft % announcementInterval == 0) {
                     getServer().broadcastMessage(getMessage("koth-time-left",
                             "%koth%", kothName,
                             "%time%", formatTime(timeLeft)));
@@ -327,7 +329,7 @@ public class wKoth extends JavaPlugin implements Listener {
             kothTasks.remove(kothName);
         }
 
-        getServer().broadcastMessage(ChatColor.RED + "¡El KoTH '" + kothName + "' ha terminado!");
+        getServer().broadcastMessage(getMessage("koth-ended", "%koth%", kothName));
     }
 
     private boolean isInKoth(Player player, String kothName) {
@@ -360,7 +362,8 @@ public class wKoth extends JavaPlugin implements Listener {
             boolean isInKoth = isInKoth(player, kothName);
 
             if (isInKoth && !wasInKoth) {
-                if (!capturingPlayers.containsKey(kothName)) {
+                if (!capturingPlayers.containsKey(kothName) &&
+                        getConfig().getBoolean("settings.broadcast-capture", true)) {
                     capturingPlayers.put(kothName, player);
                     getServer().broadcastMessage(getMessage("player-capturing",
                             "%player%", player.getName(),
@@ -368,9 +371,11 @@ public class wKoth extends JavaPlugin implements Listener {
                 }
             } else if (!isInKoth && wasInKoth) {
                 capturingPlayers.remove(kothName);
-                getServer().broadcastMessage(getMessage("player-lost-control",
-                        "%player%", player.getName(),
-                        "%koth%", kothName));
+                if (getConfig().getBoolean("settings.broadcast-capture", true)) {
+                    getServer().broadcastMessage(getMessage("player-lost-control",
+                            "%player%", player.getName(),
+                            "%koth%", kothName));
+                }
             }
         }
     }
@@ -383,11 +388,11 @@ public class wKoth extends JavaPlugin implements Listener {
         if (player.getItemInHand() != null && player.getItemInHand().getType() == Material.STICK) {
             if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 pos1.put(player.getUniqueId(), event.getClickedBlock().getLocation());
-                player.sendMessage(ChatColor.GREEN + "Primera posición seleccionada!");
+                player.sendMessage(getMessage("position-selected-1"));
                 event.setCancelled(true);
             } else if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
                 pos2.put(player.getUniqueId(), event.getClickedBlock().getLocation());
-                player.sendMessage(ChatColor.GREEN + "Segunda posición seleccionada!");
+                player.sendMessage(getMessage("position-selected-2"));
                 event.setCancelled(true);
             }
         }

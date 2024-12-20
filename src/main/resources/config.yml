@@ -13,6 +13,8 @@
 # Configuración general
 settings:
   default-capture-time: 300 # Tiempo por defecto en segundos (5 minutos)
+  announcement-interval: 30 # Intervalo en segundos para anunciar el tiempo restante
+  broadcast-capture: true # Si se debe anunciar cuando alguien captura/pierde el control
 
 # Mensajes del plugin
 messages:
@@ -29,6 +31,35 @@ messages:
   help-start: "&e/koth start <nombre> - Inicia un KoTH"
   help-stop: "&e/koth stop <nombre> - Detiene un KoTH"
   help-reload: "&e/koth reload - Recarga la configuración"
+
+  # Mensajes del sistema de captura
+  koth-started: |
+    &6=========================
+    &e¡El KoTH '%koth%' ha comenzado!
+    &eTiempo de captura: %time%
+    &6=========================
+  koth-ended: |
+    &6=========================
+    &c¡El KoTH '%koth%' ha terminado!
+    &6=========================
+  koth-winner: |
+    &6=========================
+    &a¡%player% ha ganado el KoTH '%koth%'!
+    &6=========================
+  koth-time-left: |
+    &6=========================
+    &eTiempo restante del KoTH '%koth%': %time%
+    &6=========================
+  player-capturing: |
+    &6=========================
+    &e¡%player% está capturando el KoTH '%koth%'!
+    &6=========================
+  player-lost-control: |
+    &6=========================
+    &c¡%player% ha perdido el control del KoTH '%koth%'!
+    &6=========================
+  position-selected-1: "&aHas seleccionado la primera posición para el KoTH!"
+  position-selected-2: "&aHas seleccionado la segunda posición para el KoTH!"
 
   # Mensajes de creación
   create-usage: "&cUso correcto: /koth create <nombre>"
