@@ -33,6 +33,8 @@ public class wKoth extends JavaPlugin implements Listener {
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
     private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
 
+    private KothScheduler kothScheduler;
+
     // Método para obtener mensajes formateados
     private String getMessage(String path) {
         String message = getConfig().getString("messages." + path, "");
@@ -58,6 +60,9 @@ public class wKoth extends JavaPlugin implements Listener {
 
         loadKothConfigurations();
 
+        // Iniciar el scheduler
+        kothScheduler = new KothScheduler(this);
+
         // Actualizar CAPTURE_TIME desde config
         CAPTURE_TIME = getConfig().getInt("settings.capture-time", 300);
 
@@ -74,6 +79,11 @@ public class wKoth extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        // Detener el scheduler
+        if (kothScheduler != null) {
+            kothScheduler.stop();
+        }
+
         // Detener todos los KoTHs activos
         for (String kothName : activeKoths.keySet()) {
             stopKoth(kothName);
@@ -92,6 +102,10 @@ public class wKoth extends JavaPlugin implements Listener {
                 kothSpecificTimes.put(kothName, time);
             }
         }
+    }
+
+    public boolean isKothActive(String kothName) {
+        return activeKoths.containsKey(kothName) && activeKoths.get(kothName);
     }
 
     @Override
@@ -124,6 +138,9 @@ public class wKoth extends JavaPlugin implements Listener {
             if (args[0].equalsIgnoreCase("reload")) {
                 reloadConfig();
                 loadKothConfigurations();
+                if (kothScheduler != null) {
+                    kothScheduler.loadSchedules();
+                }
                 player.sendMessage(getMessage("reload-success"));
                 return true;
             }
@@ -272,7 +289,7 @@ public class wKoth extends JavaPlugin implements Listener {
         }
     }
 
-    private void startKoth(String kothName) {
+    public void startKoth(String kothName) {
         activeKoths.put(kothName, true);
         // Usar tiempo específico del KoTH si existe
         int captureTime = kothSpecificTimes.getOrDefault(kothName, CAPTURE_TIME);

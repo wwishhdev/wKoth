@@ -92,17 +92,36 @@ messages:
 
 # Configuración específica de cada KoTH
 koths:
-  default: # Configuración por defecto para todos los KoTHs
-    capture-time: 300 # 5 minutos
+  default:
+    capture-time: 300
     commands:
       - "eco give %player% 1500"
       - "tokens give %player% 15"
       - "broadcast &a¡%player% ha ganado 1500 coins y 15 tokens por capturar el KoTH!"
+    schedule:
+      timezone: "America/Santiago"
+      times:
+        - day: "MONDAY"
+          time: "18:00"
+        - day: "WEDNESDAY"
+          time: "20:00"
+        - day: "FRIDAY"
+          time: "22:00"
+        - day: "SATURDAY"
+          time: "16:00"
 
-  # Ejemplo de KoTH específico
-  especial:
-    capture-time: 600 # 10 minutos
+  minapvp:
+    capture-time: 600
     commands:
       - "eco give %player% 3000"
       - "tokens give %player% 30"
-      - "broadcast &a¡%player% ha ganado 3000 coins y 30 tokens por capturar el KoTH especial!"
+      - "broadcast &a¡%player% ha ganado 3000 coins y 30 tokens por capturar el KoTH!"
+    schedule:
+      timezone: "America/Santiago"
+      times:
+        - day: "TUESDAY"
+          time: "19:00"
+        - day: "THURSDAY"
+          time: "21:00"
+        - day: "SUNDAY"
+          time: "17:00"
