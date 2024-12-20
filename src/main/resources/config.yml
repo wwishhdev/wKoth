@@ -12,18 +12,65 @@
 
 # Configuración general
 settings:
-  capture-time: 300 # Tiempo en segundos (5 minutos)
+  default-capture-time: 300 # Tiempo por defecto en segundos (5 minutos)
 
-# Recompensas por KoTH
-rewards:
-  default: # Recompensas por defecto para todos los KoTHs
+# Mensajes del plugin
+messages:
+  prefix: "&6[KoTH] &r"
+  no-permission: "&cNo tienes permiso para usar este comando!"
+  player-only: "&cEste comando solo puede ser ejecutado por jugadores!"
+
+  # Mensajes de ayuda
+  help-title: "&6Comandos de wKoth:"
+  help-create: "&e/koth create <nombre> - Obtén el stick para seleccionar la zona"
+  help-set: "&e/koth set - Establece el KoTH en la zona seleccionada"
+  help-list: "&e/koth list - Muestra la lista de KoTHs"
+  help-delete: "&e/koth delete <nombre> - Elimina un KoTH"
+  help-start: "&e/koth start <nombre> - Inicia un KoTH"
+  help-stop: "&e/koth stop <nombre> - Detiene un KoTH"
+  help-reload: "&e/koth reload - Recarga la configuración"
+
+  # Mensajes de creación
+  create-usage: "&cUso correcto: /koth create <nombre>"
+  koth-already-exists: "&cYa existe un KoTH con ese nombre!"
+  selection-tool-given: "&a¡Has recibido el stick de selección! Haz click derecho para seleccionar la primera posición y click izquierdo para la segunda."
+  must-create-first: "&c¡Primero debes crear un KoTH con /koth create <nombre>!"
+  must-select-positions: "&c¡Primero debes seleccionar ambas posiciones!"
+  koth-created: "&a¡KoTH '%koth%' creado exitosamente!"
+
+  # Mensajes de lista
+  no-koths: "&eNo hay KoTHs creados."
+  koth-list-header: "&6Lista de KoTHs:"
+  koth-list-entry: "&e- %koth% (Mundo: %world%, Pos1: %pos1%, Pos2: %pos2%)"
+
+  # Mensajes de inicio/parada
+  start-usage: "&cUso correcto: /koth start <nombre>"
+  stop-usage: "&cUso correcto: /koth stop <nombre>"
+  koth-not-exist: "&cNo existe un KoTH con ese nombre!"
+  koth-already-active: "&c¡Este KoTH ya está activo!"
+  koth-not-active: "&c¡Este KoTH no está activo!"
+  koth-started-success: "&a¡KoTH '%koth%' iniciado!"
+  koth-stopped-success: "&a¡KoTH '%koth%' detenido!"
+
+  # Mensajes de eliminación
+  delete-usage: "&cUso correcto: /koth delete <nombre>"
+  koth-deleted: "&a¡KoTH '%koth%' eliminado exitosamente!"
+
+  # Mensaje de recarga
+  reload-success: "&a¡Configuración recargada exitosamente!"
+
+# Configuración específica de cada KoTH
+koths:
+  default: # Configuración por defecto para todos los KoTHs
+    capture-time: 300 # 5 minutos
     commands:
       - "eco give %player% 1500"
       - "tokens give %player% 15"
       - "broadcast &a¡%player% ha ganado 1500 coins y 15 tokens por capturar el KoTH!"
 
-  # Recompensas específicas por KoTH (opcional)
+  # Ejemplo de KoTH específico
   especial:
+    capture-time: 600 # 10 minutos
     commands:
       - "eco give %player% 3000"
       - "tokens give %player% 30"

@@ -31,6 +31,22 @@ public class wKoth extends JavaPlugin implements Listener {
     private HashMap<String, Integer> kothTimers = new HashMap<>();
     private HashMap<String, BukkitRunnable> kothTasks = new HashMap<>();
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
+    private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
+
+    // Método para obtener mensajes formateados
+    private String getMessage(String path) {
+        String message = getConfig().getString("messages." + path, "");
+        return ChatColor.translateAlternateColorCodes('&',
+                getConfig().getString("messages.prefix", "") + message);
+    }
+
+    private String getMessage(String path, String... replacements) {
+        String message = getMessage(path);
+        for (int i = 0; i < replacements.length; i += 2) {
+            message = message.replace(replacements[i], replacements[i + 1]);
+        }
+        return message;
+    }
 
     @Override
     public void onEnable() {
@@ -39,6 +55,8 @@ public class wKoth extends JavaPlugin implements Listener {
 
         // Registrar eventos
         getServer().getPluginManager().registerEvents(this, this);
+
+        loadKothConfigurations();
 
         // Actualizar CAPTURE_TIME desde config
         CAPTURE_TIME = getConfig().getInt("settings.capture-time", 300);
@@ -63,10 +81,23 @@ public class wKoth extends JavaPlugin implements Listener {
         getServer().getConsoleSender().sendMessage(ChatColor.RED + "wKoth ha sido desactivado! by wwishh <3");
     }
 
+    private void loadKothConfigurations() {
+        kothSpecificTimes.clear();
+        CAPTURE_TIME = getConfig().getInt("settings.default-capture-time", 300);
+
+        // Cargar tiempos específicos de cada KoTH
+        if (getConfig().contains("koths")) {
+            for (String kothName : getConfig().getConfigurationSection("koths").getKeys(false)) {
+                int time = getConfig().getInt("koths." + kothName + ".capture-time", CAPTURE_TIME);
+                kothSpecificTimes.put(kothName, time);
+            }
+        }
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "Este comando solo puede ser ejecutado por jugadores!");
+            sender.sendMessage(getMessage("player-only"));
             return true;
         }
 
@@ -74,59 +105,55 @@ public class wKoth extends JavaPlugin implements Listener {
 
         if (command.getName().equalsIgnoreCase("koth")) {
             if (!player.hasPermission("wkoth.admin")) {
-                player.sendMessage(ChatColor.RED + "No tienes permiso para usar este comando!");
+                player.sendMessage(getMessage("no-permission"));
                 return true;
             }
 
             if (args.length == 0) {
-                player.sendMessage(ChatColor.GOLD + "Comandos de wKoth:");
-                player.sendMessage(ChatColor.YELLOW + "/koth create <nombre> - Obtén el stick para seleccionar la zona");
-                player.sendMessage(ChatColor.YELLOW + "/koth set - Establece el KoTH en la zona seleccionada");
-                player.sendMessage(ChatColor.YELLOW + "/koth list - Muestra la lista de KoTHs");
-                player.sendMessage(ChatColor.YELLOW + "/koth delete <nombre> - Elimina un KoTH");
-                player.sendMessage(ChatColor.YELLOW + "/koth start <nombre> - Inicia un KoTH");
-                player.sendMessage(ChatColor.YELLOW + "/koth stop <nombre> - Detiene un KoTH");
+                player.sendMessage(getMessage("help-title"));
+                player.sendMessage(getMessage("help-create"));
+                player.sendMessage(getMessage("help-set"));
+                player.sendMessage(getMessage("help-list"));
+                player.sendMessage(getMessage("help-delete"));
+                player.sendMessage(getMessage("help-start"));
+                player.sendMessage(getMessage("help-stop"));
+                player.sendMessage(getMessage("help-reload"));
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("reload")) {
-                if (!sender.hasPermission("wkoth.admin")) {
-                    sender.sendMessage(ChatColor.RED + "No tienes permiso para usar este comando!");
-                    return true;
-                }
-
                 reloadConfig();
-                CAPTURE_TIME = getConfig().getInt("settings.capture-time", 300);
-                sender.sendMessage(ChatColor.GREEN + "¡Configuración recargada exitosamente!");
+                loadKothConfigurations();
+                player.sendMessage(getMessage("reload-success"));
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("create")) {
                 if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth create <nombre>");
+                    player.sendMessage(getMessage("create-usage"));
                     return true;
                 }
 
                 String kothName = args[1].toLowerCase();
                 if (koths.containsKey(kothName)) {
-                    player.sendMessage(ChatColor.RED + "Ya existe un KoTH con ese nombre!");
+                    player.sendMessage(getMessage("koth-already-exists"));
                     return true;
                 }
 
                 creatingKoth.put(player.getUniqueId(), kothName);
                 player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.STICK));
-                player.sendMessage(ChatColor.GREEN + "¡Has recibido el stick de selección! Haz click derecho para seleccionar la primera posición y click izquierdo para la segunda.");
+                player.sendMessage(getMessage("selection-tool-given"));
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("set")) {
                 if (!creatingKoth.containsKey(player.getUniqueId())) {
-                    player.sendMessage(ChatColor.RED + "¡Primero debes crear un KoTH con /koth create <nombre>!");
+                    player.sendMessage(getMessage("must-create-first"));
                     return true;
                 }
 
                 if (!pos1.containsKey(player.getUniqueId()) || !pos2.containsKey(player.getUniqueId())) {
-                    player.sendMessage(ChatColor.RED + "¡Primero debes seleccionar ambas posiciones!");
+                    player.sendMessage(getMessage("must-select-positions"));
                     return true;
                 }
 
@@ -139,80 +166,81 @@ public class wKoth extends JavaPlugin implements Listener {
                 pos2.remove(player.getUniqueId());
                 creatingKoth.remove(player.getUniqueId());
 
-                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' creado exitosamente!");
+                player.sendMessage(getMessage("koth-created", "%koth%", kothName));
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("list")) {
                 if (koths.isEmpty()) {
-                    player.sendMessage(ChatColor.YELLOW + "No hay KoTHs creados.");
+                    player.sendMessage(getMessage("no-koths"));
                     return true;
                 }
 
-                player.sendMessage(ChatColor.GOLD + "Lista de KoTHs:");
+                player.sendMessage(getMessage("koth-list-header"));
                 for (String kothName : koths.keySet()) {
                     Location[] locs = koths.get(kothName);
-                    player.sendMessage(ChatColor.YELLOW + "- " + kothName + " (" +
-                            "Mundo: " + locs[0].getWorld().getName() + ", " +
-                            "Pos1: " + formatLocation(locs[0]) + ", " +
-                            "Pos2: " + formatLocation(locs[1]) + ")");
+                    player.sendMessage(getMessage("koth-list-entry",
+                            "%koth%", kothName,
+                            "%world%", locs[0].getWorld().getName(),
+                            "%pos1%", formatLocation(locs[0]),
+                            "%pos2%", formatLocation(locs[1])));
                 }
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("start")) {
                 if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth start <nombre>");
+                    player.sendMessage(getMessage("start-usage"));
                     return true;
                 }
 
                 String kothName = args[1].toLowerCase();
                 if (!koths.containsKey(kothName)) {
-                    player.sendMessage(ChatColor.RED + "No existe un KoTH con ese nombre!");
+                    player.sendMessage(getMessage("koth-not-exist"));
                     return true;
                 }
 
                 if (activeKoths.containsKey(kothName) && activeKoths.get(kothName)) {
-                    player.sendMessage(ChatColor.RED + "¡Este KoTH ya está activo!");
+                    player.sendMessage(getMessage("koth-already-active"));
                     return true;
                 }
 
                 startKoth(kothName);
-                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' iniciado!");
+                player.sendMessage(getMessage("koth-started-success", "%koth%", kothName));
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("stop")) {
                 if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth stop <nombre>");
+                    player.sendMessage(getMessage("stop-usage"));
                     return true;
                 }
 
                 String kothName = args[1].toLowerCase();
                 if (!activeKoths.containsKey(kothName) || !activeKoths.get(kothName)) {
-                    player.sendMessage(ChatColor.RED + "¡Este KoTH no está activo!");
+                    player.sendMessage(getMessage("koth-not-active"));
                     return true;
                 }
 
                 stopKoth(kothName);
-                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' detenido!");
+                player.sendMessage(getMessage("koth-stopped-success", "%koth%", kothName));
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("delete")) {
                 if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth delete <nombre>");
+                    player.sendMessage(getMessage("delete-usage"));
                     return true;
                 }
 
                 String kothName = args[1].toLowerCase();
                 if (!koths.containsKey(kothName)) {
-                    player.sendMessage(ChatColor.RED + "No existe un KoTH con ese nombre!");
+                    player.sendMessage(getMessage("koth-not-exist"));
                     return true;
                 }
 
                 koths.remove(kothName);
-                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' eliminado exitosamente!");
+                player.sendMessage(getMessage("koth-deleted", "%koth%", kothName));
                 return true;
             }
         }
@@ -244,12 +272,13 @@ public class wKoth extends JavaPlugin implements Listener {
 
     private void startKoth(String kothName) {
         activeKoths.put(kothName, true);
-        kothTimers.put(kothName, CAPTURE_TIME);
+        // Usar tiempo específico del KoTH si existe
+        int captureTime = kothSpecificTimes.getOrDefault(kothName, CAPTURE_TIME);
+        kothTimers.put(kothName, captureTime);
 
-        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
-        getServer().broadcastMessage(ChatColor.YELLOW + "¡El KoTH '" + kothName + "' ha comenzado!");
-        getServer().broadcastMessage(ChatColor.YELLOW + "¡Tiempo restante: " + formatTime(CAPTURE_TIME) + "!");
-        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
+        getServer().broadcastMessage(getMessage("koth-started",
+                "%koth%", kothName,
+                "%time%", formatTime(captureTime)));
 
         BukkitRunnable task = new BukkitRunnable() {
             @Override
@@ -259,27 +288,26 @@ public class wKoth extends JavaPlugin implements Listener {
                 if (timeLeft <= 0) {
                     Player winner = capturingPlayers.get(kothName);
                     if (winner != null) {
-                        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
-                        getServer().broadcastMessage(ChatColor.GREEN + "¡" + winner.getName() +
-                                " ha ganado el KoTH '" + kothName + "'!");
-                        getServer().broadcastMessage(ChatColor.GOLD + "=========================");
-
-                        // Dar recompensas al ganador
+                        getServer().broadcastMessage(getMessage("koth-winner",
+                                "%player%", winner.getName(),
+                                "%koth%", kothName));
                         giveRewards(winner, kothName);
                     }
                     stopKoth(kothName);
                     return;
                 }
 
-                if (timeLeft % 30 == 0) { // Mensaje cada 30 segundos
-                    getServer().broadcastMessage(ChatColor.YELLOW + "Tiempo restante del KoTH '" + kothName + "': " + formatTime(timeLeft));
+                if (timeLeft % 30 == 0) {
+                    getServer().broadcastMessage(getMessage("koth-time-left",
+                            "%koth%", kothName,
+                            "%time%", formatTime(timeLeft)));
                 }
 
                 kothTimers.put(kothName, timeLeft - 1);
             }
         };
 
-        task.runTaskTimer(this, 20L, 20L); // Ejecutar cada segundo
+        task.runTaskTimer(this, 20L, 20L);
         kothTasks.put(kothName, task);
     }
 
@@ -332,17 +360,17 @@ public class wKoth extends JavaPlugin implements Listener {
             boolean isInKoth = isInKoth(player, kothName);
 
             if (isInKoth && !wasInKoth) {
-                // Jugador entró al KoTH
                 if (!capturingPlayers.containsKey(kothName)) {
                     capturingPlayers.put(kothName, player);
-                    getServer().broadcastMessage(ChatColor.YELLOW + player.getName() +
-                            " está capturando el KoTH '" + kothName + "'!");
+                    getServer().broadcastMessage(getMessage("player-capturing",
+                            "%player%", player.getName(),
+                            "%koth%", kothName));
                 }
             } else if (!isInKoth && wasInKoth) {
-                // Jugador salió del KoTH
                 capturingPlayers.remove(kothName);
-                getServer().broadcastMessage(ChatColor.RED + player.getName() +
-                        " ha perdido el control del KoTH '" + kothName + "'!");
+                getServer().broadcastMessage(getMessage("player-lost-control",
+                        "%player%", player.getName(),
+                        "%koth%", kothName));
             }
         }
     }
