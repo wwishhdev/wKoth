@@ -255,18 +255,20 @@ public class wKoth extends JavaPlugin implements Listener {
         List<String> commands;
 
         // Intentar obtener recompensas específicas del KoTH
-        if (getConfig().contains("rewards." + kothName)) {
-            commands = getConfig().getStringList("rewards." + kothName + ".commands");
+        if (getConfig().contains("koths." + kothName)) {  // Cambiado de "rewards." a "koths."
+            commands = getConfig().getStringList("koths." + kothName + ".commands");
         } else {
             // Usar recompensas por defecto
-            commands = getConfig().getStringList("rewards.default.commands");
+            commands = getConfig().getStringList("koths.default.commands");
         }
 
         // Ejecutar comandos de recompensa
-        for (String command : commands) {
-            command = command.replace("%player%", player.getName());
-            getServer().dispatchCommand(getServer().getConsoleSender(),
-                    ChatColor.translateAlternateColorCodes('&', command));
+        if (commands != null && !commands.isEmpty()) {
+            for (String command : commands) {
+                command = command.replace("%player%", player.getName());
+                getServer().dispatchCommand(getServer().getConsoleSender(),
+                        ChatColor.translateAlternateColorCodes('&', command));
+            }
         }
     }
 
