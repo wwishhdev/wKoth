@@ -19,7 +19,8 @@ import java.util.UUID;
 public class wKoth extends JavaPlugin implements Listener {
     private HashMap<UUID, Location> pos1 = new HashMap<>();
     private HashMap<UUID, Location> pos2 = new HashMap<>();
-    private Location kothLocation = null;
+    private HashMap<String, Location[]> koths = new HashMap<>(); // Almacena los KoTHs por nombre
+    private HashMap<UUID, String> creatingKoth = new HashMap<>(); // Almacena qué KoTH está creando cada jugador
 
     @Override
     public void onEnable() {
@@ -59,35 +60,94 @@ public class wKoth extends JavaPlugin implements Listener {
 
             if (args.length == 0) {
                 player.sendMessage(ChatColor.GOLD + "Comandos de wKoth:");
-                player.sendMessage(ChatColor.YELLOW + "/koth create - Obtén el stick para seleccionar la zona");
+                player.sendMessage(ChatColor.YELLOW + "/koth create <nombre> - Obtén el stick para seleccionar la zona");
                 player.sendMessage(ChatColor.YELLOW + "/koth set - Establece el KoTH en la zona seleccionada");
+                player.sendMessage(ChatColor.YELLOW + "/koth list - Muestra la lista de KoTHs");
+                player.sendMessage(ChatColor.YELLOW + "/koth delete <nombre> - Elimina un KoTH");
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("create")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth create <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (koths.containsKey(kothName)) {
+                    player.sendMessage(ChatColor.RED + "Ya existe un KoTH con ese nombre!");
+                    return true;
+                }
+
+                creatingKoth.put(player.getUniqueId(), kothName);
                 player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.STICK));
                 player.sendMessage(ChatColor.GREEN + "¡Has recibido el stick de selección! Haz click derecho para seleccionar la primera posición y click izquierdo para la segunda.");
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("set")) {
+                if (!creatingKoth.containsKey(player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "¡Primero debes crear un KoTH con /koth create <nombre>!");
+                    return true;
+                }
+
                 if (!pos1.containsKey(player.getUniqueId()) || !pos2.containsKey(player.getUniqueId())) {
                     player.sendMessage(ChatColor.RED + "¡Primero debes seleccionar ambas posiciones!");
                     return true;
                 }
 
-                Location loc1 = pos1.get(player.getUniqueId());
-                Location loc2 = pos2.get(player.getUniqueId());
-                kothLocation = new Location(loc1.getWorld(),
-                        (loc1.getX() + loc2.getX()) / 2,
-                        (loc1.getY() + loc2.getY()) / 2,
-                        (loc1.getZ() + loc2.getZ()) / 2);
+                String kothName = creatingKoth.get(player.getUniqueId());
+                Location[] locations = new Location[]{pos1.get(player.getUniqueId()), pos2.get(player.getUniqueId())};
+                koths.put(kothName, locations);
 
-                player.sendMessage(ChatColor.GREEN + "¡KoTH creado exitosamente!");
+                // Limpiar datos temporales
+                pos1.remove(player.getUniqueId());
+                pos2.remove(player.getUniqueId());
+                creatingKoth.remove(player.getUniqueId());
+
+                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' creado exitosamente!");
+                return true;
+            }
+
+            if (args[0].equalsIgnoreCase("list")) {
+                if (koths.isEmpty()) {
+                    player.sendMessage(ChatColor.YELLOW + "No hay KoTHs creados.");
+                    return true;
+                }
+
+                player.sendMessage(ChatColor.GOLD + "Lista de KoTHs:");
+                for (String kothName : koths.keySet()) {
+                    Location[] locs = koths.get(kothName);
+                    player.sendMessage(ChatColor.YELLOW + "- " + kothName + " (" +
+                            "Mundo: " + locs[0].getWorld().getName() + ", " +
+                            "Pos1: " + formatLocation(locs[0]) + ", " +
+                            "Pos2: " + formatLocation(locs[1]) + ")");
+                }
+                return true;
+            }
+
+            if (args[0].equalsIgnoreCase("delete")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso correcto: /koth delete <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(ChatColor.RED + "No existe un KoTH con ese nombre!");
+                    return true;
+                }
+
+                koths.remove(kothName);
+                player.sendMessage(ChatColor.GREEN + "¡KoTH '" + kothName + "' eliminado exitosamente!");
                 return true;
             }
         }
         return false;
+    }
+
+    private String formatLocation(Location loc) {
+        return String.format("%.1f, %.1f, %.1f", loc.getX(), loc.getY(), loc.getZ());
     }
 
     @EventHandler
