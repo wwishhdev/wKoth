@@ -2,22 +2,26 @@ package com.wish.wKoth;
 
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.io.File;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.io.IOException;
 
 public class wKoth extends JavaPlugin implements Listener {
     private final HashMap<UUID, Integer> playerTime = new HashMap<>();
@@ -86,7 +90,7 @@ public class wKoth extends JavaPlugin implements Listener {
             getConfig().set(path + "pos1", arena.getPos1());
             getConfig().set(path + "pos2", arena.getPos2());
         }
-        saveConfig();
+        saveConfigWithComments();
     }
 
     @Override
@@ -248,6 +252,9 @@ public class wKoth extends JavaPlugin implements Listener {
             }
         }
 
+        // Guardar la configuración actual con comentarios
+        saveConfigWithComments();
+
         // Recargar la configuración
         reloadConfig();
 
@@ -342,10 +349,43 @@ public class wKoth extends JavaPlugin implements Listener {
                 .replace("%player%", player.getName())
                 .replace("%koth%", arena.getName()));
 
-        String path = "koths." + arena.getId() + ".rewards.commands";
-        for (String command : getConfig().getStringList(path)) {
-            getServer().dispatchCommand(getServer().getConsoleSender(),
-                    command.replace("%player%", player.getName()));
+        // Verificar si existen recompensas para este KoTH
+        String path = "koths." + arena.getId();
+        if (getConfig().contains(path + ".rewards.commands")) {
+            for (String command : getConfig().getStringList(path + ".rewards.commands")) {
+                getServer().dispatchCommand(getServer().getConsoleSender(),
+                        command.replace("%player%", player.getName()));
+            }
+        }
+    }
+
+    private void saveConfigWithComments() {
+        // Guardar la configuración actual
+        saveConfig();
+
+        // Recargar el archivo de configuración por defecto
+        File configFile = new File(getDataFolder(), "config.yml");
+        YamlConfiguration defaultConfig = YamlConfiguration.loadConfiguration(new InputStreamReader(getResource("config.yml")));
+
+        try {
+            // Combinar los comentarios del archivo por defecto con los valores actuales
+            List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
+            PrintWriter writer = new PrintWriter(configFile, "UTF-8");
+
+            // Escribir el header (ASCII art y comentarios iniciales)
+            for (String line : defaultConfig.saveToString().split("\n")) {
+                if (line.startsWith("#")) {
+                    writer.println(line);
+                } else {
+                    break;
+                }
+            }
+
+            // Escribir el resto de la configuración
+            writer.println(getConfig().saveToString());
+            writer.close();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
