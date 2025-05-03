@@ -3,18 +3,26 @@ package com.wish.wKoth;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.Chest;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 public class wKoth extends JavaPlugin implements Listener {
@@ -31,6 +39,14 @@ public class wKoth extends JavaPlugin implements Listener {
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
     private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
     private HashMap<String, BukkitRunnable> playerCheckTasks = new HashMap<>();
+
+    // Variables para el sistema de recompensas por cofre
+    private HashMap<String, Location> chestLocations = new HashMap<>();
+    private HashMap<String, ItemStack[]> chestContents = new HashMap<>();
+    private HashMap<String, UUID> lastChestOpeners = new HashMap<>();
+    private HashMap<String, Boolean> useChestRewards = new HashMap<>();
+    private HashMap<UUID, String> settingChestLocation = new HashMap<>();
+    private HashMap<UUID, String> editingChestLoot = new HashMap<>();
 
     private KothScheduler kothScheduler;
 
@@ -62,6 +78,9 @@ public class wKoth extends JavaPlugin implements Listener {
         // Cargar KoTHs guardados
         loadSavedKoths();
 
+        // Cargar configuraciones de cofres
+        loadChestData();
+
         // Iniciar el scheduler
         kothScheduler = new KothScheduler(this);
 
@@ -90,7 +109,79 @@ public class wKoth extends JavaPlugin implements Listener {
         for (String kothName : activeKoths.keySet()) {
             stopKoth(kothName);
         }
+
+        // Guardar datos de cofres
+        saveChestData();
+
         getServer().getConsoleSender().sendMessage(ChatColor.RED + "wKoth ha sido desactivado! by wwishh <3");
+    }
+
+    private void loadChestData() {
+        File file = new File(getDataFolder(), "chests.yml");
+        if (!file.exists()) {
+            return;
+        }
+
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(file);
+
+        for (String kothName : config.getKeys(false)) {
+            // Cargar ubicación del cofre
+            if (config.contains(kothName + ".location")) {
+                String worldName = config.getString(kothName + ".location.world");
+                double x = config.getDouble(kothName + ".location.x");
+                double y = config.getDouble(kothName + ".location.y");
+                double z = config.getDouble(kothName + ".location.z");
+
+                if (getServer().getWorld(worldName) != null) {
+                    Location loc = new Location(getServer().getWorld(worldName), x, y, z);
+                    chestLocations.put(kothName, loc);
+                }
+            }
+
+            // Cargar contenido del cofre
+            if (config.contains(kothName + ".contents")) {
+                @SuppressWarnings("unchecked")
+                List<ItemStack> items = (List<ItemStack>) config.getList(kothName + ".contents");
+                if (items != null) {
+                    ItemStack[] contents = items.toArray(new ItemStack[0]);
+                    chestContents.put(kothName, contents);
+                }
+            }
+
+            // Cargar preferencia de sistema de recompensas
+            if (config.contains(kothName + ".useChestRewards")) {
+                useChestRewards.put(kothName, config.getBoolean(kothName + ".useChestRewards", false));
+            } else {
+                useChestRewards.put(kothName, false); // Por defecto, usar recompensas por comandos
+            }
+        }
+    }
+
+    private void saveChestData() {
+        File file = new File(getDataFolder(), "chests.yml");
+        YamlConfiguration config = new YamlConfiguration();
+
+        for (Map.Entry<String, Location> entry : chestLocations.entrySet()) {
+            String kothName = entry.getKey();
+            Location loc = entry.getValue();
+
+            config.set(kothName + ".location.world", loc.getWorld().getName());
+            config.set(kothName + ".location.x", loc.getX());
+            config.set(kothName + ".location.y", loc.getY());
+            config.set(kothName + ".location.z", loc.getZ());
+
+            if (chestContents.containsKey(kothName)) {
+                config.set(kothName + ".contents", Arrays.asList(chestContents.get(kothName)));
+            }
+
+            config.set(kothName + ".useChestRewards", useChestRewards.getOrDefault(kothName, false));
+        }
+
+        try {
+            config.save(file);
+        } catch (IOException e) {
+            getLogger().severe("No se pudieron guardar los datos de los cofres: " + e.getMessage());
+        }
     }
 
     private void loadKothConfigurations() {
@@ -139,12 +230,17 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.YELLOW + "/koth set-commands <nombre> <comando> - Añade un comando de recompensa");
                 player.sendMessage(ChatColor.YELLOW + "/koth list-commands <nombre> - Muestra los comandos de recompensa");
                 player.sendMessage(ChatColor.YELLOW + "/koth remove-command <nombre> <índice> - Elimina un comando de recompensa");
+                player.sendMessage(ChatColor.YELLOW + "/koth set-chest <nombre> - Define la ubicación del cofre de recompensas");
+                player.sendMessage(ChatColor.YELLOW + "/koth set-loot <nombre> - Configura el loot del cofre");
+                player.sendMessage(ChatColor.YELLOW + "/koth view-loot <nombre> - Ver el contenido del cofre");
+                player.sendMessage(ChatColor.YELLOW + "/koth toggle-rewards <nombre> - Alterna entre recompensas por comando o cofre");
                 return true;
             }
 
             if (args[0].equalsIgnoreCase("reload")) {
                 reloadConfig();
                 loadKothConfigurations();
+                loadChestData();
                 if (kothScheduler != null) {
                     kothScheduler.loadSchedules();
                 }
@@ -269,11 +365,14 @@ public class wKoth extends JavaPlugin implements Listener {
                 // Eliminar de la configuración
                 removeKothFromConfig(kothName);
                 koths.remove(kothName);
+                chestLocations.remove(kothName);
+                chestContents.remove(kothName);
+                useChestRewards.remove(kothName);
                 player.sendMessage(getMessage("koth-deleted", "%koth%", kothName));
                 return true;
             }
 
-            // NUEVO: Comando para establecer el tiempo de captura
+            // Comando para establecer el tiempo de captura
             if (args[0].equalsIgnoreCase("set-capture-time")) {
                 if (args.length < 3) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth set-capture-time <nombre> <tiempo en segundos>");
@@ -318,7 +417,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
-            // NUEVO: Comando para añadir comandos de recompensa
+            // Comando para añadir comandos de recompensa
             if (args[0].equalsIgnoreCase("set-commands")) {
                 if (args.length < 3) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth set-commands <nombre> <comando>");
@@ -335,7 +434,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 for (int i = 2; i < args.length; i++) {
                     commandBuilder.append(args[i]).append(" ");
                 }
-                String command = commandBuilder.toString().trim();
+                String commandToAdd = commandBuilder.toString().trim();
 
                 // Obtener la sección de configuración
                 ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
@@ -352,7 +451,7 @@ public class wKoth extends JavaPlugin implements Listener {
                     commands = new ArrayList<>();
                 }
 
-                commands.add(command);
+                commands.add(commandToAdd);
                 kothsSection.set(kothName + ".commands", commands);
                 saveConfig();
 
@@ -360,7 +459,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
-            // NUEVO: Comando para listar comandos de recompensa
+            // Comando para listar comandos de recompensa
             if (args[0].equalsIgnoreCase("list-commands")) {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth list-commands <nombre>");
@@ -380,13 +479,13 @@ public class wKoth extends JavaPlugin implements Listener {
                     player.sendMessage(ChatColor.YELLOW + "No hay comandos configurados.");
                 } else {
                     for (int i = 0; i < commands.size(); i++) {
-                        player.sendMessage(ChatColor.YELLOW + (i + 1) + ": " + commands.get(i));
+                        player.sendMessage(ChatColor.YELLOW + String.valueOf(i + 1) + ": " + commands.get(i));
                     }
                 }
                 return true;
             }
 
-            // NUEVO: Comando para eliminar un comando de recompensa
+            // Comando para eliminar un comando de recompensa
             if (args[0].equalsIgnoreCase("remove-command")) {
                 if (args.length < 3) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth remove-command <nombre> <índice>");
@@ -419,6 +518,110 @@ public class wKoth extends JavaPlugin implements Listener {
                 saveConfig();
 
                 player.sendMessage(ChatColor.GREEN + "Comando eliminado: " + removedCommand);
+                return true;
+            }
+
+            // NUEVO: Comando para establecer la ubicación del cofre
+            if (args[0].equalsIgnoreCase("set-chest")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-chest <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                settingChestLocation.put(player.getUniqueId(), kothName);
+                player.sendMessage(ChatColor.YELLOW + "Haz click en un bloque para establecer la ubicación del cofre de recompensas para " + kothName);
+                return true;
+            }
+
+            // NUEVO: Comando para establecer el loot del cofre
+            if (args[0].equalsIgnoreCase("set-loot")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-loot <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                // Abrir un inventario para que el admin coloque los items
+                Inventory inv = getServer().createInventory(null, 27, "Loot para " + kothName);
+
+                // Si ya hay loot guardado, cargarlo
+                if (chestContents.containsKey(kothName)) {
+                    inv.setContents(chestContents.get(kothName));
+                }
+
+                player.openInventory(inv);
+                editingChestLoot.put(player.getUniqueId(), kothName);
+
+                return true;
+            }
+
+            // NUEVO: Comando para ver el loot del cofre
+            if (args[0].equalsIgnoreCase("view-loot")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth view-loot <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                // Abrir un inventario para ver los items (solo lectura)
+                Inventory inv = getServer().createInventory(null, 27, "Loot de " + kothName + " (Solo vista)");
+
+                if (chestContents.containsKey(kothName)) {
+                    inv.setContents(chestContents.get(kothName));
+                } else {
+                    player.sendMessage(ChatColor.RED + "No hay loot configurado para este KoTH.");
+                    return true;
+                }
+
+                player.openInventory(inv);
+                return true;
+            }
+
+            // NUEVO: Comando para alternar entre recompensas por comando o por cofre
+            if (args[0].equalsIgnoreCase("toggle-rewards")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth toggle-rewards <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                boolean useChest = !useChestRewards.getOrDefault(kothName, false);
+                useChestRewards.put(kothName, useChest);
+
+                if (useChest) {
+                    if (!chestLocations.containsKey(kothName)) {
+                        player.sendMessage(ChatColor.RED + "Advertencia: Aún no has configurado la ubicación del cofre para este KoTH.");
+                    }
+                    if (!chestContents.containsKey(kothName)) {
+                        player.sendMessage(ChatColor.RED + "Advertencia: Aún no has configurado el loot del cofre para este KoTH.");
+                    }
+                    player.sendMessage(ChatColor.GREEN + "Ahora se usarán recompensas por COFRE para " + kothName);
+                } else {
+                    player.sendMessage(ChatColor.GREEN + "Ahora se usarán recompensas por COMANDOS para " + kothName);
+                }
+
+                saveChestData();
                 return true;
             }
         }
@@ -532,23 +735,73 @@ public class wKoth extends JavaPlugin implements Listener {
     }
 
     private void giveRewards(Player player, String kothName) {
-        List<String> commands;
-
-        // Intentar obtener recompensas específicas del KoTH
-        if (getConfig().contains("koths." + kothName)) {
-            commands = getConfig().getStringList("koths." + kothName + ".commands");
+        // Verificar si se debe usar el sistema de cofres o comandos
+        if (useChestRewards.getOrDefault(kothName, false) && chestLocations.containsKey(kothName)) {
+            // Sistema de cofres
+            spawnRewardChest(player, kothName);
         } else {
-            // Usar recompensas por defecto
-            commands = getConfig().getStringList("koths.default.commands");
+            // Sistema de comandos (original)
+            List<String> commands;
+
+            // Intentar obtener recompensas específicas del KoTH
+            if (getConfig().contains("koths." + kothName)) {
+                commands = getConfig().getStringList("koths." + kothName + ".commands");
+            } else {
+                // Usar recompensas por defecto
+                commands = getConfig().getStringList("koths.default.commands");
+            }
+
+            // Ejecutar comandos de recompensa
+            if (commands != null && !commands.isEmpty()) {
+                for (String cmd : commands) {
+                    cmd = cmd.replace("%player%", player.getName());
+                    getServer().dispatchCommand(getServer().getConsoleSender(),
+                            ChatColor.translateAlternateColorCodes('&', cmd));
+                }
+            }
+        }
+    }
+
+    private void spawnRewardChest(Player player, String kothName) {
+        if (!chestLocations.containsKey(kothName)) {
+            getLogger().warning("No hay ubicación de cofre definida para " + kothName);
+            return;
         }
 
-        // Ejecutar comandos de recompensa
-        if (commands != null && !commands.isEmpty()) {
-            for (String command : commands) {
-                command = command.replace("%player%", player.getName());
-                getServer().dispatchCommand(getServer().getConsoleSender(),
-                        ChatColor.translateAlternateColorCodes('&', command));
+        Location chestLoc = chestLocations.get(kothName);
+        Block block = chestLoc.getBlock();
+
+        // Guardar el material original para restaurarlo después
+        final Material originalMaterial = block.getType();
+
+        // Colocar el cofre
+        block.setType(Material.CHEST);
+
+        if (block.getState() instanceof Chest) {
+            Chest chest = (Chest) block.getState();
+            Inventory inv = chest.getInventory();
+
+            // Poner el loot en el cofre
+            if (chestContents.containsKey(kothName)) {
+                inv.setContents(chestContents.get(kothName));
             }
+
+            // Guardar el jugador que puede abrir el cofre
+            lastChestOpeners.put(kothName, player.getUniqueId());
+
+            // Mensaje al jugador
+            player.sendMessage(ChatColor.GREEN + "¡Ha aparecido un cofre de recompensas! Ve a la ubicación designada para reclamarlo.");
+
+            // Programar la eliminación del cofre después de un tiempo
+            new BukkitRunnable() {
+                @Override
+                public void run() {
+                    if (block.getType() == Material.CHEST) {
+                        block.setType(originalMaterial);
+                    }
+                    lastChestOpeners.remove(kothName);
+                }
+            }.runTaskLater(this, 20 * 60); // 60 segundos para reclamar
         }
     }
 
@@ -700,9 +953,10 @@ public class wKoth extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
         Player player = event.getPlayer();
-        if (!player.hasPermission("wkoth.admin")) return;
 
-        if (player.getItemInHand() != null && player.getItemInHand().getType() == Material.STICK &&
+        // Para selección de KoTH
+        if (player.hasPermission("wkoth.admin") && player.getItemInHand() != null &&
+                player.getItemInHand().getType() == Material.STICK &&
                 creatingKoth.containsKey(player.getUniqueId())) {
 
             if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
@@ -726,6 +980,57 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(getMessage("position-selected-2"));
                 event.setCancelled(true);
             }
+        }
+
+        // NUEVO: Para seleccionar ubicación del cofre
+        if (player.hasPermission("wkoth.admin") && settingChestLocation.containsKey(player.getUniqueId())) {
+            if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
+                String kothName = settingChestLocation.get(player.getUniqueId());
+                Location loc = event.getClickedBlock().getLocation().clone();
+
+                chestLocations.put(kothName, loc);
+                saveChestData();
+
+                player.sendMessage(ChatColor.GREEN + "Ubicación del cofre establecida para " + kothName);
+                settingChestLocation.remove(player.getUniqueId());
+                event.setCancelled(true);
+            }
+        }
+
+        // Controlar la apertura de cofres de recompensa
+        if (event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock().getType() == Material.CHEST) {
+            // Verificar si es un cofre de recompensa
+            for (String kothName : lastChestOpeners.keySet()) {
+                if (chestLocations.containsKey(kothName) &&
+                        chestLocations.get(kothName).equals(event.getClickedBlock().getLocation())) {
+
+                    // Solo el ganador del KoTH puede abrirlo
+                    if (!player.getUniqueId().equals(lastChestOpeners.get(kothName))) {
+                        player.sendMessage(ChatColor.RED + "Este cofre solo puede ser abierto por el ganador del KoTH.");
+                        event.setCancelled(true);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (!(event.getPlayer() instanceof Player)) return;
+
+        Player player = (Player) event.getPlayer();
+
+        // Guardar el loot cuando el admin cierra el inventario de edición
+        if (editingChestLoot.containsKey(player.getUniqueId())) {
+            String kothName = editingChestLoot.get(player.getUniqueId());
+            ItemStack[] contents = event.getInventory().getContents();
+
+            chestContents.put(kothName, contents);
+            saveChestData();
+
+            player.sendMessage(ChatColor.GREEN + "Loot guardado para el KoTH " + kothName);
+            editingChestLoot.remove(player.getUniqueId());
         }
     }
 }

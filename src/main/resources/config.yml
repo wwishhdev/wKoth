@@ -6,7 +6,7 @@
 #  ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝
 #
 # Plugin desarrollado por wwishh
-# Version: 1.0.0
+# Version: 1.0.2
 # Discord: wwishh
 # GitHub: github.com/wwishh777
 
@@ -15,6 +15,7 @@ settings:
   default-capture-time: 300 # Tiempo por defecto en segundos (5 minutos)
   announcement-interval: 30 # Intervalo en segundos para anunciar el tiempo restante
   broadcast-capture: true # Si se debe anunciar cuando alguien captura/pierde el control
+  chest-duration: 60 # Duración en segundos que permanece el cofre de recompensas
 
 # Mensajes del plugin
 messages:
@@ -89,6 +90,15 @@ messages:
 
   # Mensaje de recarga
   reload-success: "&a¡Configuración recargada exitosamente!"
+
+  # Mensajes del sistema de cofres
+  chest-reward-spawned: "&a¡Ha aparecido un cofre de recompensas en la posición designada! Tienes %time% segundos para reclamarlo."
+  chest-only-winner: "&cEste cofre solo puede ser abierto por el ganador del KoTH."
+  chest-location-set: "&aUbicación del cofre establecida correctamente para el KoTH '%koth%'."
+  chest-loot-saved: "&aLoot guardado correctamente para el KoTH '%koth%'."
+  chest-no-location: "&cPrimero debes establecer una ubicación para el cofre con /koth set-chest."
+  chest-toggle-command: "&aAhora se usarán recompensas por COMANDOS para el KoTH '%koth%'."
+  chest-toggle-chest: "&aAhora se usarán recompensas por COFRE para el KoTH '%koth%'."
 
 # Configuración específica de cada KoTH
 koths:
