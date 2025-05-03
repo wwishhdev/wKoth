@@ -1,5 +1,6 @@
 package com.wish.wKoth;
 
+import org.bukkit.ChatColor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -71,6 +72,11 @@ public class KothScheduler {
             String kothName = entry.getKey();
             Map<DayOfWeek, LocalTime> schedules = entry.getValue();
 
+            // Verificar si el KoTH existe
+            if (!plugin.koths.containsKey(kothName)) {
+                continue;
+            }
+
             // Obtener la zona horaria configurada para este KoTH
             String timezone = plugin.getConfig().getString("koths." + kothName + ".schedule.timezone", "UTC");
             ZoneId zoneId = ZoneId.of(timezone);
@@ -83,11 +89,30 @@ public class KothScheduler {
             // Verificar si hay un horario programado para este día y hora
             LocalTime scheduledTime = schedules.get(currentDay);
             if (scheduledTime != null) {
-                // Si la hora actual coincide con la hora programada (con un margen de 1 minuto)
-                if (Math.abs(ChronoUnit.MINUTES.between(currentTime, scheduledTime)) < 1) {
+                // Si la hora actual está dentro del rango de 30 segundos de la hora programada
+                long diffInSeconds = Math.abs(ChronoUnit.SECONDS.between(currentTime, scheduledTime));
+                if (diffInSeconds <= 30) {
                     // Iniciar el KoTH si no está activo
                     if (!plugin.isKothActive(kothName)) {
                         plugin.startKoth(kothName);
+                    }
+                }
+
+                // Notificaciones previas (5 y 1 minuto antes)
+                if (!plugin.isKothActive(kothName)) {
+                    // 5 minutos antes
+                    if (ChronoUnit.MINUTES.between(currentTime, scheduledTime) == 5) {
+                        plugin.getServer().broadcastMessage(
+                                ChatColor.translateAlternateColorCodes('&',
+                                        "&6[KoTH] &e¡El KoTH '" + kothName + "' comenzará en 5 minutos!")
+                        );
+                    }
+                    // 1 minuto antes
+                    else if (ChronoUnit.MINUTES.between(currentTime, scheduledTime) == 1) {
+                        plugin.getServer().broadcastMessage(
+                                ChatColor.translateAlternateColorCodes('&',
+                                        "&6[KoTH] &e¡El KoTH '" + kothName + "' comenzará en 1 minuto!")
+                        );
                     }
                 }
             }

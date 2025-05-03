@@ -6,6 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -22,7 +23,7 @@ import java.util.UUID;
 public class wKoth extends JavaPlugin implements Listener {
     private HashMap<UUID, Location> pos1 = new HashMap<>();
     private HashMap<UUID, Location> pos2 = new HashMap<>();
-    private HashMap<String, Location[]> koths = new HashMap<>(); // Almacena los KoTHs por nombre
+    public HashMap<String, Location[]> koths = new HashMap<>(); // Almacena los KoTHs por nombre
     private HashMap<UUID, String> creatingKoth = new HashMap<>(); // Almacena qué KoTH está creando cada jugador
 
     // Variables para el sistema de captura
@@ -32,6 +33,7 @@ public class wKoth extends JavaPlugin implements Listener {
     private HashMap<String, BukkitRunnable> kothTasks = new HashMap<>();
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
     private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
+    private HashMap<String, BukkitRunnable> playerCheckTasks = new HashMap<>();
 
     private KothScheduler kothScheduler;
 
@@ -60,11 +62,14 @@ public class wKoth extends JavaPlugin implements Listener {
 
         loadKothConfigurations();
 
+        // Cargar KoTHs guardados
+        loadSavedKoths();
+
         // Iniciar el scheduler
         kothScheduler = new KothScheduler(this);
 
-        // Actualizar CAPTURE_TIME desde config
-        CAPTURE_TIME = getConfig().getInt("settings.capture-time", 300);
+        // Actualizar CAPTURE_TIME desde config (Corregido para usar la clave correcta)
+        CAPTURE_TIME = getConfig().getInt("settings.default-capture-time", 300);
 
         // Mostrar el ASCII art
         getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "\n" +
@@ -178,6 +183,9 @@ public class wKoth extends JavaPlugin implements Listener {
                 Location[] locations = new Location[]{pos1.get(player.getUniqueId()), pos2.get(player.getUniqueId())};
                 koths.put(kothName, locations);
 
+                // Guardar en la configuración
+                saveKothToConfig(kothName, locations);
+
                 // Limpiar datos temporales
                 pos1.remove(player.getUniqueId());
                 pos2.remove(player.getUniqueId());
@@ -256,12 +264,75 @@ public class wKoth extends JavaPlugin implements Listener {
                     return true;
                 }
 
+                // Eliminar de la configuración
+                removeKothFromConfig(kothName);
                 koths.remove(kothName);
                 player.sendMessage(getMessage("koth-deleted", "%koth%", kothName));
                 return true;
             }
         }
         return false;
+    }
+
+    private void saveKothToConfig(String kothName, Location[] locations) {
+        ConfigurationSection kothSection = getConfig().getConfigurationSection("saved-koths");
+        if (kothSection == null) {
+            kothSection = getConfig().createSection("saved-koths");
+        }
+
+        ConfigurationSection specificKoth = kothSection.createSection(kothName);
+        specificKoth.set("world", locations[0].getWorld().getName());
+        specificKoth.set("pos1.x", locations[0].getX());
+        specificKoth.set("pos1.y", locations[0].getY());
+        specificKoth.set("pos1.z", locations[0].getZ());
+        specificKoth.set("pos2.x", locations[1].getX());
+        specificKoth.set("pos2.y", locations[1].getY());
+        specificKoth.set("pos2.z", locations[1].getZ());
+
+        saveConfig();
+    }
+
+    private void removeKothFromConfig(String kothName) {
+        ConfigurationSection kothSection = getConfig().getConfigurationSection("saved-koths");
+        if (kothSection != null && kothSection.contains(kothName)) {
+            kothSection.set(kothName, null);
+            saveConfig();
+        }
+    }
+
+    private void loadSavedKoths() {
+        ConfigurationSection kothSection = getConfig().getConfigurationSection("saved-koths");
+        if (kothSection == null) return;
+
+        for (String kothName : kothSection.getKeys(false)) {
+            ConfigurationSection specificKoth = kothSection.getConfigurationSection(kothName);
+            if (specificKoth == null) continue;
+
+            String worldName = specificKoth.getString("world");
+            org.bukkit.World world = getServer().getWorld(worldName);
+
+            if (world == null) {
+                getLogger().warning("No se pudo cargar el KoTH " + kothName + ": mundo no encontrado");
+                continue;
+            }
+
+            Location pos1 = new Location(
+                    world,
+                    specificKoth.getDouble("pos1.x"),
+                    specificKoth.getDouble("pos1.y"),
+                    specificKoth.getDouble("pos1.z")
+            );
+
+            Location pos2 = new Location(
+                    world,
+                    specificKoth.getDouble("pos2.x"),
+                    specificKoth.getDouble("pos2.y"),
+                    specificKoth.getDouble("pos2.z")
+            );
+
+            koths.put(kothName, new Location[]{pos1, pos2});
+            getLogger().info("KoTH " + kothName + " cargado desde la configuración");
+        }
     }
 
     private String formatLocation(Location loc) {
@@ -299,6 +370,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 "%koth%", kothName,
                 "%time%", formatTime(captureTime)));
 
+        // Tarea principal del KoTH
         BukkitRunnable task = new BukkitRunnable() {
             @Override
             public void run() {
@@ -327,9 +399,34 @@ public class wKoth extends JavaPlugin implements Listener {
                 kothTimers.put(kothName, timeLeft - 1);
             }
         };
-
         task.runTaskTimer(this, 20L, 20L);
         kothTasks.put(kothName, task);
+
+        // Tarea para verificar continuamente si los jugadores están en la zona
+        BukkitRunnable playerCheckTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (!activeKoths.containsKey(kothName) || !activeKoths.get(kothName)) {
+                    this.cancel();
+                    return;
+                }
+
+                Player capturingPlayer = capturingPlayers.get(kothName);
+                if (capturingPlayer != null) {
+                    // Verificar si el jugador sigue en el servidor y en la zona
+                    if (!capturingPlayer.isOnline() || !isInKoth(capturingPlayer, kothName)) {
+                        capturingPlayers.remove(kothName);
+                        if (getConfig().getBoolean("settings.broadcast-capture", true)) {
+                            getServer().broadcastMessage(getMessage("player-lost-control",
+                                    "%player%", capturingPlayer.getName(),
+                                    "%koth%", kothName));
+                        }
+                    }
+                }
+            }
+        };
+        playerCheckTask.runTaskTimer(this, 10L, 10L); // Verificar cada 0.5 segundos
+        playerCheckTasks.put(kothName, playerCheckTask);
     }
 
     private String formatTime(int seconds) {
@@ -346,6 +443,11 @@ public class wKoth extends JavaPlugin implements Listener {
         if (kothTasks.containsKey(kothName)) {
             kothTasks.get(kothName).cancel();
             kothTasks.remove(kothName);
+        }
+
+        if (playerCheckTasks.containsKey(kothName)) {
+            playerCheckTasks.get(kothName).cancel();
+            playerCheckTasks.remove(kothName);
         }
 
         getServer().broadcastMessage(getMessage("koth-ended", "%koth%", kothName));
@@ -404,13 +506,27 @@ public class wKoth extends JavaPlugin implements Listener {
         Player player = event.getPlayer();
         if (!player.hasPermission("wkoth.admin")) return;
 
-        if (player.getItemInHand() != null && player.getItemInHand().getType() == Material.STICK) {
+        if (player.getItemInHand() != null && player.getItemInHand().getType() == Material.STICK &&
+                creatingKoth.containsKey(player.getUniqueId())) {
+
             if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-                pos1.put(player.getUniqueId(), event.getClickedBlock().getLocation());
+                // Usar el bloque exacto seleccionado
+                Location loc = event.getClickedBlock().getLocation().clone();
+                // Ajustar para cubrir todo el bloque
+                loc.setX(loc.getBlockX());
+                loc.setY(loc.getBlockY());
+                loc.setZ(loc.getBlockZ());
+                pos1.put(player.getUniqueId(), loc);
                 player.sendMessage(getMessage("position-selected-1"));
                 event.setCancelled(true);
             } else if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
-                pos2.put(player.getUniqueId(), event.getClickedBlock().getLocation());
+                // Usar el bloque exacto seleccionado
+                Location loc = event.getClickedBlock().getLocation().clone();
+                // Ajustar para cubrir todo el bloque
+                loc.setX(loc.getBlockX() + 1); // +1 para incluir el bloque completo
+                loc.setY(loc.getBlockY() + 1);
+                loc.setZ(loc.getBlockZ() + 1);
+                pos2.put(player.getUniqueId(), loc);
                 player.sendMessage(getMessage("position-selected-2"));
                 event.setCancelled(true);
             }
