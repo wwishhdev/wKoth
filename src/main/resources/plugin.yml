@@ -1,5 +1,5 @@
 name: wKoth
-version: 1.0.2
+version: 1.0.3
 main: com.wish.wKoth.wKoth
 author: wwishh
 description: Sistema de KoTH avanzado con soporte para múltiples arenas
@@ -13,4 +13,61 @@ commands:
 permissions:
   wkoth.admin:
     description: Permite usar todos los comandos del plugin
+    default: op
+    children:
+      wkoth.create: true
+      wkoth.delete: true
+      wkoth.start: true
+      wkoth.stop: true
+      wkoth.reload: true
+      wkoth.list: true
+      wkoth.command: true
+      wkoth.chest: true
+
+  wkoth.create:
+    description: Permite crear y editar KoTHs
+    default: op
+
+  wkoth.delete:
+    description: Permite eliminar KoTHs
+    default: op
+
+  wkoth.start:
+    description: Permite iniciar un KoTH
+    default: op
+
+  wkoth.stop:
+    description: Permite detener un KoTH
+    default: op
+
+  wkoth.reload:
+    description: Permite recargar la configuración del plugin
+    default: op
+
+  wkoth.list:
+    description: Permite ver la lista de KoTHs
+    default: op
+
+  wkoth.command:
+    description: Permite gestionar comandos de recompensa
+    default: op
+
+  wkoth.chest:
+    description: Permite gestionar cofres de recompensa
+    default: op
+    children:
+      wkoth.chest.set: true
+      wkoth.chest.loot: true
+      wkoth.chest.toggle: true
+
+  wkoth.chest.set:
+    description: Permite establecer la ubicación del cofre de recompensas
+    default: op
+
+  wkoth.chest.loot:
+    description: Permite configurar y ver el loot de los cofres
+    default: op
+
+  wkoth.chest.toggle:
+    description: Permite alternar entre sistemas de recompensa
     default: op
