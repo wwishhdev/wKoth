@@ -3,7 +3,6 @@ package com.wish.wKoth;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -16,9 +15,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 public class wKoth extends JavaPlugin implements Listener {
     private HashMap<UUID, Location> pos1 = new HashMap<>();
@@ -68,7 +65,7 @@ public class wKoth extends JavaPlugin implements Listener {
         // Iniciar el scheduler
         kothScheduler = new KothScheduler(this);
 
-        // Actualizar CAPTURE_TIME desde config (Corregido para usar la clave correcta)
+        // Actualizar CAPTURE_TIME desde config
         CAPTURE_TIME = getConfig().getInt("settings.default-capture-time", 300);
 
         // Mostrar el ASCII art
@@ -105,6 +102,7 @@ public class wKoth extends JavaPlugin implements Listener {
             for (String kothName : getConfig().getConfigurationSection("koths").getKeys(false)) {
                 int time = getConfig().getInt("koths." + kothName + ".capture-time", CAPTURE_TIME);
                 kothSpecificTimes.put(kothName, time);
+                getLogger().info("Cargando configuración para KoTH " + kothName + ": tiempo de captura = " + time);
             }
         }
     }
@@ -137,6 +135,10 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(getMessage("help-start"));
                 player.sendMessage(getMessage("help-stop"));
                 player.sendMessage(getMessage("help-reload"));
+                player.sendMessage(ChatColor.YELLOW + "/koth set-capture-time <nombre> <segundos> - Establece el tiempo de captura");
+                player.sendMessage(ChatColor.YELLOW + "/koth set-commands <nombre> <comando> - Añade un comando de recompensa");
+                player.sendMessage(ChatColor.YELLOW + "/koth list-commands <nombre> - Muestra los comandos de recompensa");
+                player.sendMessage(ChatColor.YELLOW + "/koth remove-command <nombre> <índice> - Elimina un comando de recompensa");
                 return true;
             }
 
@@ -270,6 +272,155 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(getMessage("koth-deleted", "%koth%", kothName));
                 return true;
             }
+
+            // NUEVO: Comando para establecer el tiempo de captura
+            if (args[0].equalsIgnoreCase("set-capture-time")) {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-capture-time <nombre> <tiempo en segundos>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                int time;
+                try {
+                    time = Integer.parseInt(args[2]);
+                    if (time <= 0) {
+                        player.sendMessage(ChatColor.RED + "El tiempo debe ser mayor que 0.");
+                        return true;
+                    }
+                } catch (NumberFormatException e) {
+                    player.sendMessage(ChatColor.RED + "El tiempo debe ser un número válido.");
+                    return true;
+                }
+
+                // Actualizar en la configuración
+                ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+                if (kothsSection == null) {
+                    kothsSection = getConfig().createSection("koths");
+                }
+
+                if (!kothsSection.contains(kothName)) {
+                    kothsSection.createSection(kothName);
+                }
+
+                kothsSection.set(kothName + ".capture-time", time);
+                saveConfig();
+
+                // Actualizar la caché de tiempos específicos
+                kothSpecificTimes.put(kothName, time);
+
+                player.sendMessage(ChatColor.GREEN + "Tiempo de captura para " + kothName + " actualizado a " + time + " segundos.");
+                return true;
+            }
+
+            // NUEVO: Comando para añadir comandos de recompensa
+            if (args[0].equalsIgnoreCase("set-commands")) {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-commands <nombre> <comando>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                StringBuilder commandBuilder = new StringBuilder();
+                for (int i = 2; i < args.length; i++) {
+                    commandBuilder.append(args[i]).append(" ");
+                }
+                String command = commandBuilder.toString().trim();
+
+                // Obtener la sección de configuración
+                ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+                if (kothsSection == null) {
+                    kothsSection = getConfig().createSection("koths");
+                }
+
+                if (!kothsSection.contains(kothName)) {
+                    kothsSection.createSection(kothName);
+                }
+
+                List<String> commands = kothsSection.getStringList(kothName + ".commands");
+                if (commands == null) {
+                    commands = new ArrayList<>();
+                }
+
+                commands.add(command);
+                kothsSection.set(kothName + ".commands", commands);
+                saveConfig();
+
+                player.sendMessage(ChatColor.GREEN + "Comando añadido a las recompensas de " + kothName);
+                return true;
+            }
+
+            // NUEVO: Comando para listar comandos de recompensa
+            if (args[0].equalsIgnoreCase("list-commands")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth list-commands <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                List<String> commands = getConfig().getStringList("koths." + kothName + ".commands");
+
+                player.sendMessage(ChatColor.GOLD + "Comandos de recompensa para " + kothName + ":");
+                if (commands.isEmpty()) {
+                    player.sendMessage(ChatColor.YELLOW + "No hay comandos configurados.");
+                } else {
+                    for (int i = 0; i < commands.size(); i++) {
+                        player.sendMessage(ChatColor.YELLOW + (i + 1) + ": " + commands.get(i));
+                    }
+                }
+                return true;
+            }
+
+            // NUEVO: Comando para eliminar un comando de recompensa
+            if (args[0].equalsIgnoreCase("remove-command")) {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth remove-command <nombre> <índice>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                int index;
+                try {
+                    index = Integer.parseInt(args[2]) - 1;
+                } catch (NumberFormatException e) {
+                    player.sendMessage(ChatColor.RED + "El índice debe ser un número válido.");
+                    return true;
+                }
+
+                List<String> commands = getConfig().getStringList("koths." + kothName + ".commands");
+
+                if (index < 0 || index >= commands.size()) {
+                    player.sendMessage(ChatColor.RED + "Índice fuera de rango. Usa /koth list-commands para ver los índices.");
+                    return true;
+                }
+
+                String removedCommand = commands.remove(index);
+                getConfig().set("koths." + kothName + ".commands", commands);
+                saveConfig();
+
+                player.sendMessage(ChatColor.GREEN + "Comando eliminado: " + removedCommand);
+                return true;
+            }
         }
         return false;
     }
@@ -289,15 +440,56 @@ public class wKoth extends JavaPlugin implements Listener {
         specificKoth.set("pos2.y", locations[1].getY());
         specificKoth.set("pos2.z", locations[1].getZ());
 
+        // NUEVO: Crear configuración en koths con valores predeterminados
+        ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+        if (kothsSection == null) {
+            kothsSection = getConfig().createSection("koths");
+        }
+
+        if (!kothsSection.contains(kothName)) {
+            ConfigurationSection newKothConfig = kothsSection.createSection(kothName);
+            // Usar los valores predeterminados de "default" o valores generales
+            newKothConfig.set("capture-time", getConfig().getInt("settings.default-capture-time", 300));
+
+            // Copiar comandos predeterminados si están disponibles
+            if (kothsSection.contains("default") && kothsSection.isConfigurationSection("default")) {
+                List<String> defaultCommands = kothsSection.getStringList("default.commands");
+                if (defaultCommands != null && !defaultCommands.isEmpty()) {
+                    newKothConfig.set("commands", defaultCommands);
+                }
+            } else {
+                // Comandos predeterminados básicos
+                List<String> defaultCommands = new ArrayList<>();
+                defaultCommands.add("eco give %player% 1000");
+                defaultCommands.add("broadcast &a¡%player% ha ganado el KoTH " + kothName + "!");
+                newKothConfig.set("commands", defaultCommands);
+            }
+
+            // Configurar horario básico
+            ConfigurationSection scheduleSection = newKothConfig.createSection("schedule");
+            scheduleSection.set("timezone", "UTC");
+        }
+
         saveConfig();
+
+        // Actualizar la caché de tiempos específicos
+        loadKothConfigurations();
     }
 
     private void removeKothFromConfig(String kothName) {
+        // Eliminar de saved-koths
         ConfigurationSection kothSection = getConfig().getConfigurationSection("saved-koths");
         if (kothSection != null && kothSection.contains(kothName)) {
             kothSection.set(kothName, null);
-            saveConfig();
         }
+
+        // Eliminar de koths
+        ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+        if (kothsSection != null && kothsSection.contains(kothName)) {
+            kothsSection.set(kothName, null);
+        }
+
+        saveConfig();
     }
 
     private void loadSavedKoths() {
@@ -343,7 +535,7 @@ public class wKoth extends JavaPlugin implements Listener {
         List<String> commands;
 
         // Intentar obtener recompensas específicas del KoTH
-        if (getConfig().contains("koths." + kothName)) {  // Cambiado de "rewards." a "koths."
+        if (getConfig().contains("koths." + kothName)) {
             commands = getConfig().getStringList("koths." + kothName + ".commands");
         } else {
             // Usar recompensas por defecto
@@ -364,6 +556,8 @@ public class wKoth extends JavaPlugin implements Listener {
         activeKoths.put(kothName, true);
         // Usar tiempo específico del KoTH si existe
         int captureTime = kothSpecificTimes.getOrDefault(kothName, CAPTURE_TIME);
+        // Log para depuración
+        getLogger().info("Iniciando KoTH " + kothName + " con tiempo de captura: " + captureTime + " segundos");
         kothTimers.put(kothName, captureTime);
 
         getServer().broadcastMessage(getMessage("koth-started",
@@ -375,6 +569,8 @@ public class wKoth extends JavaPlugin implements Listener {
             @Override
             public void run() {
                 int timeLeft = kothTimers.get(kothName);
+                // Log para depuración
+                getLogger().info("KoTH " + kothName + " - tiempo restante: " + timeLeft + " segundos");
 
                 if (timeLeft <= 0) {
                     Player winner = capturingPlayers.get(kothName);
