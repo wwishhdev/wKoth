@@ -13,6 +13,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -20,10 +21,13 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.event.inventory.InventoryClickEvent;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 public class wKoth extends JavaPlugin implements Listener {
@@ -39,21 +43,24 @@ public class wKoth extends JavaPlugin implements Listener {
     private HashMap<String, BukkitRunnable> kothTasks = new HashMap<>();
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
     private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
-    private HashMap<String, BukkitRunnable> playerCheckTasks = new HashMap<>();
-    private HashMap<UUID, String> viewingLoot = new HashMap<>();
     private HashMap<String, Integer> kothSpecificDurations = new HashMap<>();
+    private HashMap<String, BukkitRunnable> playerCheckTasks = new HashMap<>();
     private HashMap<String, BukkitRunnable> kothTimeoutTasks = new HashMap<>();
+    private HashMap<UUID, String> viewingLoot = new HashMap<>(); // Para rastrear quién está viendo un loot
 
-    // Variables para el sistema de recompensas por cofre
+    // Variables para el sistema de recompensas
     private HashMap<String, Location> chestLocations = new HashMap<>();
     private HashMap<String, ItemStack[]> chestContents = new HashMap<>();
     private HashMap<String, UUID> lastChestOpeners = new HashMap<>();
-    private HashMap<String, Boolean> useCommandRewards = new HashMap<>();
     private HashMap<String, Boolean> useChestRewards = new HashMap<>();
+    private HashMap<String, Boolean> useCommandRewards = new HashMap<>();
     private HashMap<UUID, String> settingChestLocation = new HashMap<>();
     private HashMap<UUID, String> editingChestLoot = new HashMap<>();
 
     private KothScheduler kothScheduler;
+
+    // Constante para la zona horaria argentina
+    private static final String ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
 
     // Método para obtener mensajes formateados
     private String getMessage(String path) {
@@ -89,9 +96,6 @@ public class wKoth extends JavaPlugin implements Listener {
         // Iniciar el scheduler
         kothScheduler = new KothScheduler(this);
 
-        // Actualizar CAPTURE_TIME desde config
-        CAPTURE_TIME = getConfig().getInt("settings.default-capture-time", 300);
-
         // Mostrar el ASCII art
         getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "\n" +
                 "██╗    ██╗██╗  ██╗ ██████╗ ████████╗██╗  ██╗\n" +
@@ -100,7 +104,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 "██║███╗██║██╔═██╗ ██║   ██║   ██║   ██╔══██║\n" +
                 "╚███╔███╔╝██║  ██╗╚██████╔╝   ██║   ██║  ██║\n" +
                 " ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝\n");
-        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth ha sido activado! by wwishh <3");
+        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth v1.0.3 ha sido activado! by wwishh <3");
     }
 
     @Override
@@ -153,7 +157,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 }
             }
 
-            // Cargar preferencia de sistema de recompensas
+            // Cargar preferencia de sistemas de recompensas
             if (config.contains(kothName + ".useChestRewards")) {
                 useChestRewards.put(kothName, config.getBoolean(kothName + ".useChestRewards",
                         getConfig().getBoolean("settings.chest-rewards-enabled", true)));
@@ -256,13 +260,14 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(getMessage("help-stop"));
                 player.sendMessage(getMessage("help-reload"));
                 player.sendMessage(ChatColor.YELLOW + "/koth set-capture-time <nombre> <segundos> - Establece el tiempo de captura");
+                player.sendMessage(ChatColor.YELLOW + "/koth set-duration <nombre> <segundos> - Establece la duración máxima del KoTH");
                 player.sendMessage(ChatColor.YELLOW + "/koth set-commands <nombre> <comando> - Añade un comando de recompensa");
                 player.sendMessage(ChatColor.YELLOW + "/koth list-commands <nombre> - Muestra los comandos de recompensa");
                 player.sendMessage(ChatColor.YELLOW + "/koth remove-command <nombre> <índice> - Elimina un comando de recompensa");
                 player.sendMessage(ChatColor.YELLOW + "/koth set-chest <nombre> - Define la ubicación del cofre de recompensas");
                 player.sendMessage(ChatColor.YELLOW + "/koth set-loot <nombre> - Configura el loot del cofre");
-                player.sendMessage(ChatColor.YELLOW + "/koth view-loot <nombre> - Ver el contenido del cofre");
-                player.sendMessage(ChatColor.YELLOW + "/koth set-duration <nombre> <segundos> - Establece la duración máxima del KoTH");
+                player.sendMessage(ChatColor.YELLOW + "/koth view-loot <nombre> - Ver el contenido del cofre (solo lectura)");
+                player.sendMessage(ChatColor.YELLOW + "/koth set-schedule <nombre> <día> <hora> - Programa un KoTH (ej: lunes 20:30)");
                 return true;
             }
 
@@ -293,31 +298,6 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.STICK));
                 player.sendMessage(getMessage("selection-tool-given"));
                 return true;
-            }
-
-            if (args[0].equalsIgnoreCase("set-duration")) {
-                if (args.length < 3) {
-                    player.sendMessage(ChatColor.RED + "Uso: /koth set-duration <nombre> <tiempo en segundos>");
-                    return true;
-                }
-
-                String kothName = args[1].toLowerCase();
-                if (!koths.containsKey(kothName)) {
-                    player.sendMessage(getMessage("koth-not-exist"));
-                    return true;
-                }
-
-                int time;
-                try {
-                    time = Integer.parseInt(args[2]);
-                    if (time <= 0) {
-                        player.sendMessage(ChatColor.RED + "El tiempo debe ser mayor que 0.");
-                        return true;
-                    }
-                } catch (NumberFormatException e) {
-                    player.sendMessage(ChatColor.RED + "El tiempo debe ser un número válido.");
-                    return true;
-                }
             }
 
             if (args[0].equalsIgnoreCase("set")) {
@@ -422,6 +402,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 chestLocations.remove(kothName);
                 chestContents.remove(kothName);
                 useChestRewards.remove(kothName);
+                useCommandRewards.remove(kothName);
                 player.sendMessage(getMessage("koth-deleted", "%koth%", kothName));
                 return true;
             }
@@ -461,10 +442,55 @@ public class wKoth extends JavaPlugin implements Listener {
                     kothsSection.createSection(kothName);
                 }
 
-                kothsSection.set(kothName + ".duration", time);
+                kothsSection.set(kothName + ".capture-time", time);
                 saveConfig();
 
                 // Actualizar la caché de tiempos específicos
+                kothSpecificTimes.put(kothName, time);
+
+                player.sendMessage(ChatColor.GREEN + "Tiempo de captura para " + kothName + " actualizado a " + time + " segundos.");
+                return true;
+            }
+
+            // Comando para establecer la duración máxima del KoTH
+            if (args[0].equalsIgnoreCase("set-duration")) {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-duration <nombre> <tiempo en segundos>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                int time;
+                try {
+                    time = Integer.parseInt(args[2]);
+                    if (time <= 0) {
+                        player.sendMessage(ChatColor.RED + "El tiempo debe ser mayor que 0.");
+                        return true;
+                    }
+                } catch (NumberFormatException e) {
+                    player.sendMessage(ChatColor.RED + "El tiempo debe ser un número válido.");
+                    return true;
+                }
+
+                // Actualizar en la configuración
+                ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+                if (kothsSection == null) {
+                    kothsSection = getConfig().createSection("koths");
+                }
+
+                if (!kothsSection.contains(kothName)) {
+                    kothsSection.createSection(kothName);
+                }
+
+                kothsSection.set(kothName + ".duration", time);
+                saveConfig();
+
+                // Actualizar la caché
                 kothSpecificDurations.put(kothName, time);
 
                 player.sendMessage(getMessage("koth-duration-set", "%koth%", kothName, "%time%", String.valueOf(time)));
@@ -575,7 +601,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
-            // NUEVO: Comando para establecer la ubicación del cofre
+            // Comando para establecer la ubicación del cofre
             if (args[0].equalsIgnoreCase("set-chest")) {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth set-chest <nombre>");
@@ -593,7 +619,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
-            // NUEVO: Comando para establecer el loot del cofre
+            // Comando para establecer el loot del cofre
             if (args[0].equalsIgnoreCase("set-loot")) {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth set-loot <nombre>");
@@ -620,7 +646,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
-            // Comando para ver el loot del cofre
+            // Comando para ver el loot del cofre (solo lectura)
             if (args[0].equalsIgnoreCase("view-loot")) {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth view-loot <nombre>");
@@ -633,6 +659,7 @@ public class wKoth extends JavaPlugin implements Listener {
                     return true;
                 }
 
+                // Abrir un inventario para ver los items (solo lectura)
                 Inventory inv = getServer().createInventory(null, 27, "Loot de " + kothName + " (Solo vista)");
 
                 if (chestContents.containsKey(kothName)) {
@@ -645,6 +672,111 @@ public class wKoth extends JavaPlugin implements Listener {
                 }
 
                 player.openInventory(inv);
+                return true;
+            }
+
+            // Comando para programar un horario de KoTH
+            if (args[0].equalsIgnoreCase("set-schedule")) {
+                if (args.length < 4) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-schedule <nombre> <día> <hora>");
+                    player.sendMessage(ChatColor.YELLOW + "Ejemplo: /koth set-schedule evento lunes 20:30");
+                    player.sendMessage(ChatColor.YELLOW + "Días válidos: lunes, martes, miércoles, jueves, viernes, sábado, domingo");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                // Convertir el día a inglés (para DayOfWeek enum)
+                String dayInput = args[2].toLowerCase();
+                DayOfWeek day;
+
+                switch (dayInput) {
+                    case "lunes": day = DayOfWeek.MONDAY; break;
+                    case "martes": day = DayOfWeek.TUESDAY; break;
+                    case "miércoles":
+                    case "miercoles": day = DayOfWeek.WEDNESDAY; break;
+                    case "jueves": day = DayOfWeek.THURSDAY; break;
+                    case "viernes": day = DayOfWeek.FRIDAY; break;
+                    case "sábado":
+                    case "sabado": day = DayOfWeek.SATURDAY; break;
+                    case "domingo": day = DayOfWeek.SUNDAY; break;
+                    default:
+                        player.sendMessage(ChatColor.RED + "Día inválido. Use: lunes, martes, miércoles, jueves, viernes, sábado o domingo");
+                        return true;
+                }
+
+                // Validar el formato de hora (HH:MM)
+                String timeInput = args[3];
+                LocalTime time;
+                try {
+                    time = LocalTime.parse(timeInput, DateTimeFormatter.ofPattern("H:mm"));
+                } catch (DateTimeParseException e) {
+                    player.sendMessage(ChatColor.RED + "Formato de hora inválido. Use HH:MM (ejemplo: 20:30)");
+                    return true;
+                }
+
+                // Obtener/crear la sección de configuración
+                ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+                if (kothsSection == null) {
+                    kothsSection = getConfig().createSection("koths");
+                }
+
+                if (!kothsSection.contains(kothName)) {
+                    kothsSection.createSection(kothName);
+                }
+
+                // Crear o actualizar la sección de schedule
+                ConfigurationSection scheduleSection = kothsSection.getConfigurationSection(kothName + ".schedule");
+                if (scheduleSection == null) {
+                    scheduleSection = kothsSection.createSection(kothName + ".schedule");
+                }
+
+                // Establecer la zona horaria de Argentina
+                scheduleSection.set("timezone", ARGENTINA_TIMEZONE);
+
+                // Obtener las programaciones existentes o crear una nueva lista
+                List<Map<String, Object>> times = new ArrayList<>();
+                if (scheduleSection.contains("times")) {
+                    @SuppressWarnings("unchecked")
+                    List<Map<?, ?>> existingTimes = scheduleSection.getMapList("times");
+
+                    // Convertir la lista existente
+                    for (Map<?, ?> existingMap : existingTimes) {
+                        Map<String, Object> convertedMap = new HashMap<>();
+                        for (Map.Entry<?, ?> entry : existingMap.entrySet()) {
+                            convertedMap.put(entry.getKey().toString(), entry.getValue());
+                        }
+                        times.add(convertedMap);
+                    }
+
+                    // Eliminar horarios existentes para el mismo día
+                    times.removeIf(map -> day.name().equalsIgnoreCase((String) map.get("day")));
+                }
+
+                // Añadir el nuevo horario
+                Map<String, Object> newSchedule = new HashMap<>();
+                newSchedule.put("day", day.name());
+                newSchedule.put("time", time.format(DateTimeFormatter.ofPattern("HH:mm")));
+                times.add(newSchedule);
+
+                // Guardar la configuración actualizada
+                scheduleSection.set("times", times);
+                saveConfig();
+
+                // Recargar schedules
+                if (kothScheduler != null) {
+                    kothScheduler.loadSchedules();
+                }
+
+                String formattedDay = dayInput.substring(0, 1).toUpperCase() + dayInput.substring(1).toLowerCase();
+                player.sendMessage(ChatColor.GREEN + "Horario programado para el KoTH " + kothName + ": " +
+                        formattedDay + " a las " + time.format(DateTimeFormatter.ofPattern("HH:mm")) +
+                        " (Zona horaria: Argentina)");
+
                 return true;
             }
         }
@@ -696,7 +828,7 @@ public class wKoth extends JavaPlugin implements Listener {
 
             // Configurar horario básico
             ConfigurationSection scheduleSection = newKothConfig.createSection("schedule");
-            scheduleSection.set("timezone", "UTC");
+            scheduleSection.set("timezone", ARGENTINA_TIMEZONE);
         }
 
         saveConfig();
@@ -761,12 +893,13 @@ public class wKoth extends JavaPlugin implements Listener {
     }
 
     private void giveRewards(Player player, String kothName) {
-        // Verificar si se debe usar el sistema de cofres o comandos
-        if (useChestRewards.getOrDefault(kothName, false) && chestLocations.containsKey(kothName)) {
-            // Sistema de cofres
-            spawnRewardChest(player, kothName);
-        } else {
-            // Sistema de comandos (original)
+        boolean commandEnabled = useCommandRewards.getOrDefault(kothName,
+                getConfig().getBoolean("settings.command-rewards-enabled", true));
+        boolean chestEnabled = useChestRewards.getOrDefault(kothName,
+                getConfig().getBoolean("settings.chest-rewards-enabled", true));
+
+        // Sistema de comandos
+        if (commandEnabled) {
             List<String> commands;
 
             // Intentar obtener recompensas específicas del KoTH
@@ -785,6 +918,11 @@ public class wKoth extends JavaPlugin implements Listener {
                             ChatColor.translateAlternateColorCodes('&', cmd));
                 }
             }
+        }
+
+        // Sistema de cofres
+        if (chestEnabled && chestLocations.containsKey(kothName)) {
+            spawnRewardChest(player, kothName);
         }
     }
 
@@ -816,7 +954,9 @@ public class wKoth extends JavaPlugin implements Listener {
             lastChestOpeners.put(kothName, player.getUniqueId());
 
             // Mensaje al jugador
-            player.sendMessage(ChatColor.GREEN + "¡Ha aparecido un cofre de recompensas! Ve a la ubicación designada para reclamarlo.");
+            int chestDuration = getConfig().getInt("settings.chest-duration", 60);
+            player.sendMessage(getMessage("chest-reward-spawned",
+                    "%time%", String.valueOf(chestDuration)));
 
             // Programar la eliminación del cofre después de un tiempo
             new BukkitRunnable() {
@@ -827,7 +967,7 @@ public class wKoth extends JavaPlugin implements Listener {
                     }
                     lastChestOpeners.remove(kothName);
                 }
-            }.runTaskLater(this, 20 * 60); // 60 segundos para reclamar
+            }.runTaskLater(this, 20L * chestDuration);
         }
     }
 
@@ -835,21 +975,25 @@ public class wKoth extends JavaPlugin implements Listener {
         activeKoths.put(kothName, true);
         // Usar tiempo específico del KoTH si existe
         int captureTime = kothSpecificTimes.getOrDefault(kothName, CAPTURE_TIME);
+        int kothDuration = kothSpecificDurations.getOrDefault(kothName,
+                getConfig().getInt("settings.default-koth-duration", 900));
+
         // Log para depuración
-        getLogger().info("Iniciando KoTH " + kothName + " con tiempo de captura: " + captureTime + " segundos");
+        getLogger().info("Iniciando KoTH " + kothName + " con tiempo de captura: " +
+                captureTime + " segundos, duración: " + kothDuration + " segundos");
+
         kothTimers.put(kothName, captureTime);
 
         getServer().broadcastMessage(getMessage("koth-started",
                 "%koth%", kothName,
-                "%time%", formatTime(captureTime)));
+                "%time%", formatTime(captureTime),
+                "%duration%", formatTime(kothDuration)));
 
         // Tarea principal del KoTH
         BukkitRunnable task = new BukkitRunnable() {
             @Override
             public void run() {
                 int timeLeft = kothTimers.get(kothName);
-                // Log para depuración
-                getLogger().info("KoTH " + kothName + " - tiempo restante: " + timeLeft + " segundos");
 
                 if (timeLeft <= 0) {
                     Player winner = capturingPlayers.get(kothName);
@@ -902,6 +1046,21 @@ public class wKoth extends JavaPlugin implements Listener {
         };
         playerCheckTask.runTaskTimer(this, 10L, 10L); // Verificar cada 0.5 segundos
         playerCheckTasks.put(kothName, playerCheckTask);
+
+        // Añadir un nuevo temporizador para la finalización por tiempo límite
+        BukkitRunnable timeoutTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                // Verificar si el KoTH sigue activo
+                if (activeKoths.containsKey(kothName) && activeKoths.get(kothName)) {
+                    // Finalizar el KoTH por tiempo límite
+                    getServer().broadcastMessage(getMessage("koth-timeout", "%koth%", kothName));
+                    stopKoth(kothName);
+                }
+            }
+        };
+        timeoutTask.runTaskLater(this, 20L * kothDuration);
+        kothTimeoutTasks.put(kothName, timeoutTask);
     }
 
     private String formatTime(int seconds) {
@@ -925,6 +1084,12 @@ public class wKoth extends JavaPlugin implements Listener {
             playerCheckTasks.remove(kothName);
         }
 
+        // Cancelar el temporizador de finalización
+        if (kothTimeoutTasks.containsKey(kothName)) {
+            kothTimeoutTasks.get(kothName).cancel();
+            kothTimeoutTasks.remove(kothName);
+        }
+
         getServer().broadcastMessage(getMessage("koth-ended", "%koth%", kothName));
     }
 
@@ -944,6 +1109,68 @@ public class wKoth extends JavaPlugin implements Listener {
         return loc.getX() >= minX && loc.getX() <= maxX &&
                 loc.getY() >= minY && loc.getY() <= maxY &&
                 loc.getZ() >= minZ && loc.getZ() <= maxZ;
+    }
+
+    // Métodos para placeholders
+    public String getActivePlaceholder() {
+        for (Map.Entry<String, Boolean> entry : activeKoths.entrySet()) {
+            if (entry.getValue()) {
+                return "Sí";
+            }
+        }
+        return "No";
+    }
+
+    public String getActiveKothName() {
+        for (Map.Entry<String, Boolean> entry : activeKoths.entrySet()) {
+            if (entry.getValue()) {
+                return entry.getKey();
+            }
+        }
+        return "Ninguno";
+    }
+
+    public String getActiveKothTime() {
+        for (Map.Entry<String, Boolean> entry : activeKoths.entrySet()) {
+            if (entry.getValue()) {
+                Integer time = kothTimers.get(entry.getKey());
+                if (time != null) {
+                    return formatTime(time);
+                }
+            }
+        }
+        return "N/A";
+    }
+
+    public String getActiveKothCapturing() {
+        for (Map.Entry<String, Boolean> entry : activeKoths.entrySet()) {
+            if (entry.getValue()) {
+                Player player = capturingPlayers.get(entry.getKey());
+                if (player != null) {
+                    return player.getName();
+                }
+            }
+        }
+        return "Nadie";
+    }
+
+    public String getSpecificKothTime(String kothName) {
+        if (activeKoths.containsKey(kothName) && activeKoths.get(kothName) && kothTimers.containsKey(kothName)) {
+            return formatTime(kothTimers.get(kothName));
+        }
+        return "N/A";
+    }
+
+    public String getSpecificKothActive(String kothName) {
+        return activeKoths.containsKey(kothName) && activeKoths.get(kothName) ? "Sí" : "No";
+    }
+
+    public String getSpecificKothCapturing(String kothName) {
+        if (activeKoths.containsKey(kothName) && activeKoths.get(kothName) && capturingPlayers.containsKey(kothName)) {
+            Player player = capturingPlayers.get(kothName);
+            return player != null ? player.getName() : "Nadie";
+        }
+        return "Nadie";
     }
 
     @EventHandler
@@ -1008,8 +1235,8 @@ public class wKoth extends JavaPlugin implements Listener {
             }
         }
 
-        // NUEVO: Para seleccionar ubicación del cofre
-        if (player.hasPermission("wkoth.admin") && settingChestLocation.containsKey(player.getUniqueId())) {
+        // Para seleccionar ubicación del cofre
+        if (player.hasPermission("wkoth.chest.set") && settingChestLocation.containsKey(player.getUniqueId())) {
             if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
                 String kothName = settingChestLocation.get(player.getUniqueId());
                 Location loc = event.getClickedBlock().getLocation().clone();
