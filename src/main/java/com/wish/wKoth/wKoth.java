@@ -20,6 +20,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.event.inventory.InventoryClickEvent;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,11 +40,15 @@ public class wKoth extends JavaPlugin implements Listener {
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
     private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
     private HashMap<String, BukkitRunnable> playerCheckTasks = new HashMap<>();
+    private HashMap<UUID, String> viewingLoot = new HashMap<>();
+    private HashMap<String, Integer> kothSpecificDurations = new HashMap<>();
+    private HashMap<String, BukkitRunnable> kothTimeoutTasks = new HashMap<>();
 
     // Variables para el sistema de recompensas por cofre
     private HashMap<String, Location> chestLocations = new HashMap<>();
     private HashMap<String, ItemStack[]> chestContents = new HashMap<>();
     private HashMap<String, UUID> lastChestOpeners = new HashMap<>();
+    private HashMap<String, Boolean> useCommandRewards = new HashMap<>();
     private HashMap<String, Boolean> useChestRewards = new HashMap<>();
     private HashMap<UUID, String> settingChestLocation = new HashMap<>();
     private HashMap<UUID, String> editingChestLoot = new HashMap<>();
@@ -150,9 +155,17 @@ public class wKoth extends JavaPlugin implements Listener {
 
             // Cargar preferencia de sistema de recompensas
             if (config.contains(kothName + ".useChestRewards")) {
-                useChestRewards.put(kothName, config.getBoolean(kothName + ".useChestRewards", false));
+                useChestRewards.put(kothName, config.getBoolean(kothName + ".useChestRewards",
+                        getConfig().getBoolean("settings.chest-rewards-enabled", true)));
             } else {
-                useChestRewards.put(kothName, false); // Por defecto, usar recompensas por comandos
+                useChestRewards.put(kothName, getConfig().getBoolean("settings.chest-rewards-enabled", true));
+            }
+
+            if (config.contains(kothName + ".useCommandRewards")) {
+                useCommandRewards.put(kothName, config.getBoolean(kothName + ".useCommandRewards",
+                        getConfig().getBoolean("settings.command-rewards-enabled", true)));
+            } else {
+                useCommandRewards.put(kothName, getConfig().getBoolean("settings.command-rewards-enabled", true));
             }
         }
     }
@@ -174,7 +187,10 @@ public class wKoth extends JavaPlugin implements Listener {
                 config.set(kothName + ".contents", Arrays.asList(chestContents.get(kothName)));
             }
 
-            config.set(kothName + ".useChestRewards", useChestRewards.getOrDefault(kothName, false));
+            config.set(kothName + ".useChestRewards", useChestRewards.getOrDefault(kothName,
+                    getConfig().getBoolean("settings.chest-rewards-enabled", true)));
+            config.set(kothName + ".useCommandRewards", useCommandRewards.getOrDefault(kothName,
+                    getConfig().getBoolean("settings.command-rewards-enabled", true)));
         }
 
         try {
@@ -186,14 +202,27 @@ public class wKoth extends JavaPlugin implements Listener {
 
     private void loadKothConfigurations() {
         kothSpecificTimes.clear();
+        kothSpecificDurations.clear();
         CAPTURE_TIME = getConfig().getInt("settings.default-capture-time", 300);
+        int defaultDuration = getConfig().getInt("settings.default-koth-duration", 900);
 
         // Cargar tiempos específicos de cada KoTH
         if (getConfig().contains("koths")) {
             for (String kothName : getConfig().getConfigurationSection("koths").getKeys(false)) {
                 int time = getConfig().getInt("koths." + kothName + ".capture-time", CAPTURE_TIME);
+                int duration = getConfig().getInt("koths." + kothName + ".duration", defaultDuration);
+                boolean cmdRewards = getConfig().getBoolean("koths." + kothName + ".command-rewards",
+                        getConfig().getBoolean("settings.command-rewards-enabled", true));
+                boolean chestRewards = getConfig().getBoolean("koths." + kothName + ".chest-rewards",
+                        getConfig().getBoolean("settings.chest-rewards-enabled", true));
+
                 kothSpecificTimes.put(kothName, time);
-                getLogger().info("Cargando configuración para KoTH " + kothName + ": tiempo de captura = " + time);
+                kothSpecificDurations.put(kothName, duration);
+                useCommandRewards.put(kothName, cmdRewards);
+                useChestRewards.put(kothName, chestRewards);
+
+                getLogger().info("Cargando configuración para KoTH " + kothName + ": tiempo de captura = " +
+                        time + ", duración = " + duration + ", comandos = " + cmdRewards + ", cofres = " + chestRewards);
             }
         }
     }
@@ -233,7 +262,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.sendMessage(ChatColor.YELLOW + "/koth set-chest <nombre> - Define la ubicación del cofre de recompensas");
                 player.sendMessage(ChatColor.YELLOW + "/koth set-loot <nombre> - Configura el loot del cofre");
                 player.sendMessage(ChatColor.YELLOW + "/koth view-loot <nombre> - Ver el contenido del cofre");
-                player.sendMessage(ChatColor.YELLOW + "/koth toggle-rewards <nombre> - Alterna entre recompensas por comando o cofre");
+                player.sendMessage(ChatColor.YELLOW + "/koth set-duration <nombre> <segundos> - Establece la duración máxima del KoTH");
                 return true;
             }
 
@@ -264,6 +293,31 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.STICK));
                 player.sendMessage(getMessage("selection-tool-given"));
                 return true;
+            }
+
+            if (args[0].equalsIgnoreCase("set-duration")) {
+                if (args.length < 3) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth set-duration <nombre> <tiempo en segundos>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                int time;
+                try {
+                    time = Integer.parseInt(args[2]);
+                    if (time <= 0) {
+                        player.sendMessage(ChatColor.RED + "El tiempo debe ser mayor que 0.");
+                        return true;
+                    }
+                } catch (NumberFormatException e) {
+                    player.sendMessage(ChatColor.RED + "El tiempo debe ser un número válido.");
+                    return true;
+                }
             }
 
             if (args[0].equalsIgnoreCase("set")) {
@@ -407,13 +461,13 @@ public class wKoth extends JavaPlugin implements Listener {
                     kothsSection.createSection(kothName);
                 }
 
-                kothsSection.set(kothName + ".capture-time", time);
+                kothsSection.set(kothName + ".duration", time);
                 saveConfig();
 
                 // Actualizar la caché de tiempos específicos
-                kothSpecificTimes.put(kothName, time);
+                kothSpecificDurations.put(kothName, time);
 
-                player.sendMessage(ChatColor.GREEN + "Tiempo de captura para " + kothName + " actualizado a " + time + " segundos.");
+                player.sendMessage(getMessage("koth-duration-set", "%koth%", kothName, "%time%", String.valueOf(time)));
                 return true;
             }
 
@@ -566,7 +620,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 return true;
             }
 
-            // NUEVO: Comando para ver el loot del cofre
+            // Comando para ver el loot del cofre
             if (args[0].equalsIgnoreCase("view-loot")) {
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth view-loot <nombre>");
@@ -579,49 +633,18 @@ public class wKoth extends JavaPlugin implements Listener {
                     return true;
                 }
 
-                // Abrir un inventario para ver los items (solo lectura)
                 Inventory inv = getServer().createInventory(null, 27, "Loot de " + kothName + " (Solo vista)");
 
                 if (chestContents.containsKey(kothName)) {
                     inv.setContents(chestContents.get(kothName));
+                    // Registrar que el jugador está viendo este loot (para bloquear interacciones)
+                    viewingLoot.put(player.getUniqueId(), kothName);
                 } else {
                     player.sendMessage(ChatColor.RED + "No hay loot configurado para este KoTH.");
                     return true;
                 }
 
                 player.openInventory(inv);
-                return true;
-            }
-
-            // NUEVO: Comando para alternar entre recompensas por comando o por cofre
-            if (args[0].equalsIgnoreCase("toggle-rewards")) {
-                if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Uso: /koth toggle-rewards <nombre>");
-                    return true;
-                }
-
-                String kothName = args[1].toLowerCase();
-                if (!koths.containsKey(kothName)) {
-                    player.sendMessage(getMessage("koth-not-exist"));
-                    return true;
-                }
-
-                boolean useChest = !useChestRewards.getOrDefault(kothName, false);
-                useChestRewards.put(kothName, useChest);
-
-                if (useChest) {
-                    if (!chestLocations.containsKey(kothName)) {
-                        player.sendMessage(ChatColor.RED + "Advertencia: Aún no has configurado la ubicación del cofre para este KoTH.");
-                    }
-                    if (!chestContents.containsKey(kothName)) {
-                        player.sendMessage(ChatColor.RED + "Advertencia: Aún no has configurado el loot del cofre para este KoTH.");
-                    }
-                    player.sendMessage(ChatColor.GREEN + "Ahora se usarán recompensas por COFRE para " + kothName);
-                } else {
-                    player.sendMessage(ChatColor.GREEN + "Ahora se usarán recompensas por COMANDOS para " + kothName);
-                }
-
-                saveChestData();
                 return true;
             }
         }
@@ -643,7 +666,7 @@ public class wKoth extends JavaPlugin implements Listener {
         specificKoth.set("pos2.y", locations[1].getY());
         specificKoth.set("pos2.z", locations[1].getZ());
 
-        // NUEVO: Crear configuración en koths con valores predeterminados
+        // Crear configuración en koths con valores predeterminados
         ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
         if (kothsSection == null) {
             kothsSection = getConfig().createSection("koths");
@@ -653,6 +676,9 @@ public class wKoth extends JavaPlugin implements Listener {
             ConfigurationSection newKothConfig = kothsSection.createSection(kothName);
             // Usar los valores predeterminados de "default" o valores generales
             newKothConfig.set("capture-time", getConfig().getInt("settings.default-capture-time", 300));
+            newKothConfig.set("duration", getConfig().getInt("settings.default-koth-duration", 900));
+            newKothConfig.set("command-rewards", getConfig().getBoolean("settings.command-rewards-enabled", true));
+            newKothConfig.set("chest-rewards", getConfig().getBoolean("settings.chest-rewards-enabled", true));
 
             // Copiar comandos predeterminados si están disponibles
             if (kothsSection.contains("default") && kothsSection.isConfigurationSection("default")) {
