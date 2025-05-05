@@ -3,6 +3,7 @@ version: 1.0.3
 main: com.wish.wKoth.wKoth
 author: wwishh
 description: Sistema de KoTH avanzado con soporte para múltiples arenas
+website: https://github.com/wwishh/wKoth
 
 commands:
   koth:
