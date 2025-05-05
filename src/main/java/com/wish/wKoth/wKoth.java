@@ -104,7 +104,7 @@ public class wKoth extends JavaPlugin implements Listener {
                 "██║███╗██║██╔═██╗ ██║   ██║   ██║   ██╔══██║\n" +
                 "╚███╔███╔╝██║  ██╗╚██████╔╝   ██║   ██║  ██║\n" +
                 " ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝\n");
-        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth v1.0.3 ha sido activado! by wwishh <3");
+        getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "wKoth v1.0.5 ha sido activado! by wwishh <3");
     }
 
     @Override
