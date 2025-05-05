@@ -6,16 +6,28 @@
 #  ╚══╝╚══╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝
 #
 # Plugin desarrollado por wwishh
-# Version: 1.0.3
+# Version: 1.0.4
 # Discord: wwishh
 # GitHub: github.com/wwishhdev
 
 # Configuración general
 settings:
   default-capture-time: 300 # Tiempo por defecto en segundos (5 minutos)
+  default-koth-duration: 900 # Tiempo máximo del KoTH en segundos (15 minutos) si nadie lo captura
   announcement-interval: 30 # Intervalo en segundos para anunciar el tiempo restante
   broadcast-capture: true # Si se debe anunciar cuando alguien captura/pierde el control
   chest-duration: 60 # Duración en segundos que permanece el cofre de recompensas
+  command-rewards-enabled: true # Si las recompensas por comandos están habilitadas por defecto
+  chest-rewards-enabled: true # Si las recompensas por cofre están habilitadas por defecto
+
+# Placeholders disponibles
+# %koth_active% - Muestra "Sí" o "No" si hay algún KoTH activo
+# %koth_name% - Nombre del KoTH activo (o "Ninguno")
+# %koth_time% - Tiempo restante del KoTH activo (o "N/A")
+# %koth_capturing% - Jugador capturando el KoTH (o "Nadie")
+# %koth_specific_time_[nombre]% - Tiempo restante de un KoTH específico
+# %koth_specific_active_[nombre]% - Si un KoTH específico está activo
+# %koth_specific_capturing_[nombre]% - Jugador capturando un KoTH específico
 
 # Mensajes del plugin
 messages:
@@ -38,10 +50,16 @@ messages:
     &6=========================
     &e¡El KoTH '%koth%' ha comenzado!
     &eTiempo de captura: %time%
+    &eTiempo límite: %duration%
     &6=========================
   koth-ended: |
     &6=========================
     &c¡El KoTH '%koth%' ha terminado!
+    &6=========================
+  koth-timeout: |
+    &6=========================
+    &c¡El KoTH '%koth%' ha finalizado por tiempo límite!
+    &cNadie logró capturarlo a tiempo.
     &6=========================
   koth-winner: |
     &6=========================
@@ -97,8 +115,9 @@ messages:
   chest-location-set: "&aUbicación del cofre establecida correctamente para el KoTH '%koth%'."
   chest-loot-saved: "&aLoot guardado correctamente para el KoTH '%koth%'."
   chest-no-location: "&cPrimero debes establecer una ubicación para el cofre con /koth set-chest."
-  chest-toggle-command: "&aAhora se usarán recompensas por COMANDOS para el KoTH '%koth%'."
-  chest-toggle-chest: "&aAhora se usarán recompensas por COFRE para el KoTH '%koth%'."
+
+  # Mensaje nuevo para duración del KoTH
+  koth-duration-set: "&aDuración del KoTH '%koth%' establecida a %time% segundos."
 
 # Configuración específica de cada KoTH
 koths:
