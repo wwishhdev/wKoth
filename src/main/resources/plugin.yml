@@ -8,7 +8,7 @@ website: https://github.com/wwishhdev
 commands:
   koth:
     description: Comando principal del plugin wKoth
-    usage: /<command> [create|set|list|delete|start|stop|reload|set-capture-time|set-duration|set-commands|list-commands|remove-command|set-chest|set-loot|view-loot]
+    usage: /<command> [create|set|list|delete|start|stop|reload|set-capture-time|set-duration|set-commands|list-commands|remove-command|set-schedule|set-chest|set-loot|view-loot]
     permission: wkoth.admin
 
 permissions:
