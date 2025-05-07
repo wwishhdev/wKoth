@@ -1299,5 +1299,10 @@ public class wKoth extends JavaPlugin implements Listener {
             player.sendMessage(ChatColor.GREEN + "Loot guardado para el KoTH " + kothName);
             editingChestLoot.remove(player.getUniqueId());
         }
+
+        // Limpiar referencia para jugadores que estaban viendo loot
+        if (viewingLoot.containsKey(player.getUniqueId())) {
+            viewingLoot.remove(player.getUniqueId());
+        }
     }
 }
