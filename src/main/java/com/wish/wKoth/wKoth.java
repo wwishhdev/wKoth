@@ -245,29 +245,66 @@ public class wKoth extends JavaPlugin implements Listener {
         Player player = (Player) sender;
 
         if (command.getName().equalsIgnoreCase("koth")) {
-            if (!player.hasPermission("wkoth.admin")) {
-                player.sendMessage(getMessage("no-permission"));
+            // Si no hay argumentos o es ayuda, mostrar menú de ayuda
+            if (args.length == 0) {
+                player.sendMessage(getMessage("help-title"));
+
+                // Mostrar comandos administrativos solo a quienes tienen permiso
+                if (player.hasPermission("wkoth.admin")) {
+                    player.sendMessage(getMessage("help-create"));
+                    player.sendMessage(getMessage("help-set"));
+                    player.sendMessage(getMessage("help-list"));
+                    player.sendMessage(getMessage("help-delete"));
+                    player.sendMessage(getMessage("help-start"));
+                    player.sendMessage(getMessage("help-stop"));
+                    player.sendMessage(getMessage("help-reload"));
+                    player.sendMessage(ChatColor.YELLOW + "/koth set-capture-time <nombre> <segundos> - Establece el tiempo de captura");
+                    player.sendMessage(ChatColor.YELLOW + "/koth set-duration <nombre> <segundos> - Establece la duración máxima del KoTH");
+                    player.sendMessage(ChatColor.YELLOW + "/koth set-commands <nombre> <comando> - Añade un comando de recompensa");
+                    player.sendMessage(ChatColor.YELLOW + "/koth list-commands <nombre> - Muestra los comandos de recompensa");
+                    player.sendMessage(ChatColor.YELLOW + "/koth remove-command <nombre> <índice> - Elimina un comando de recompensa");
+                    player.sendMessage(ChatColor.YELLOW + "/koth set-chest <nombre> - Define la ubicación del cofre de recompensas");
+                    player.sendMessage(ChatColor.YELLOW + "/koth set-loot <nombre> - Configura el loot del cofre");
+                    player.sendMessage(ChatColor.YELLOW + "/koth set-schedule <nombre> <día> <hora> - Programa un KoTH (ej: lunes 20:30)");
+                }
+
+                // Este comando lo pueden usar todos los jugadores
+                player.sendMessage(ChatColor.YELLOW + "/koth view-loot <nombre> - Ver el contenido del cofre (solo lectura)");
+
                 return true;
             }
 
-            if (args.length == 0) {
-                player.sendMessage(getMessage("help-title"));
-                player.sendMessage(getMessage("help-create"));
-                player.sendMessage(getMessage("help-set"));
-                player.sendMessage(getMessage("help-list"));
-                player.sendMessage(getMessage("help-delete"));
-                player.sendMessage(getMessage("help-start"));
-                player.sendMessage(getMessage("help-stop"));
-                player.sendMessage(getMessage("help-reload"));
-                player.sendMessage(ChatColor.YELLOW + "/koth set-capture-time <nombre> <segundos> - Establece el tiempo de captura");
-                player.sendMessage(ChatColor.YELLOW + "/koth set-duration <nombre> <segundos> - Establece la duración máxima del KoTH");
-                player.sendMessage(ChatColor.YELLOW + "/koth set-commands <nombre> <comando> - Añade un comando de recompensa");
-                player.sendMessage(ChatColor.YELLOW + "/koth list-commands <nombre> - Muestra los comandos de recompensa");
-                player.sendMessage(ChatColor.YELLOW + "/koth remove-command <nombre> <índice> - Elimina un comando de recompensa");
-                player.sendMessage(ChatColor.YELLOW + "/koth set-chest <nombre> - Define la ubicación del cofre de recompensas");
-                player.sendMessage(ChatColor.YELLOW + "/koth set-loot <nombre> - Configura el loot del cofre");
-                player.sendMessage(ChatColor.YELLOW + "/koth view-loot <nombre> - Ver el contenido del cofre (solo lectura)");
-                player.sendMessage(ChatColor.YELLOW + "/koth set-schedule <nombre> <día> <hora> - Programa un KoTH (ej: lunes 20:30)");
+            // Permitir que cualquier jugador pueda usar el comando view-loot
+            if (args[0].equalsIgnoreCase("view-loot")) {
+                if (args.length < 2) {
+                    player.sendMessage(ChatColor.RED + "Uso: /koth view-loot <nombre>");
+                    return true;
+                }
+
+                String kothName = args[1].toLowerCase();
+                if (!koths.containsKey(kothName)) {
+                    player.sendMessage(getMessage("koth-not-exist"));
+                    return true;
+                }
+
+                // Abrir un inventario para ver los items (solo lectura)
+                Inventory inv = getServer().createInventory(null, 27, "Loot de " + kothName + " (Solo vista)");
+
+                if (chestContents.containsKey(kothName)) {
+                    inv.setContents(chestContents.get(kothName));
+                    // Registrar que el jugador está viendo este loot (para bloquear interacciones)
+                    viewingLoot.put(player.getUniqueId(), kothName);
+                } else {
+                    player.sendMessage(ChatColor.RED + "No hay loot configurado para este KoTH.");
+                    return true;
+                }
+
+                player.openInventory(inv);
+                return true;
+            }
+            // Para todos los demás comandos, verificar permisos de admin
+            else if (!player.hasPermission("wkoth.admin")) {
+                player.sendMessage(getMessage("no-permission"));
                 return true;
             }
 
@@ -279,6 +316,25 @@ public class wKoth extends JavaPlugin implements Listener {
                     kothScheduler.loadSchedules();
                 }
                 player.sendMessage(getMessage("reload-success"));
+                return true;
+            }
+
+            if (args[0].equalsIgnoreCase("list")) {
+                if (koths.isEmpty()) {
+                    player.sendMessage(getMessage("no-koths"));
+                    return true;
+                }
+
+                player.sendMessage(getMessage("koth-list-header"));
+                for (Map.Entry<String, Location[]> entry : koths.entrySet()) {
+                    String kothName = entry.getKey();
+                    Location[] locations = entry.getValue();
+                    player.sendMessage(getMessage("koth-list-entry",
+                            "%koth%", kothName,
+                            "%world%", locations[0].getWorld().getName(),
+                            "%pos1%", formatLocation(locations[0]),
+                            "%pos2%", formatLocation(locations[1])));
+                }
                 return true;
             }
 
@@ -294,8 +350,19 @@ public class wKoth extends JavaPlugin implements Listener {
                     return true;
                 }
 
+                // Dar el stick de selección al jugador
+                ItemStack stick = new ItemStack(Material.STICK);
+                ItemMeta meta = stick.getItemMeta();
+                meta.setDisplayName(ChatColor.GOLD + "Selector de KoTH");
+                stick.setItemMeta(meta);
+
+                if (player.getInventory().firstEmpty() == -1) {
+                    player.getWorld().dropItem(player.getLocation(), stick);
+                } else {
+                    player.getInventory().addItem(stick);
+                }
+
                 creatingKoth.put(player.getUniqueId(), kothName);
-                player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.STICK));
                 player.sendMessage(getMessage("selection-tool-given"));
                 return true;
             }
@@ -312,36 +379,22 @@ public class wKoth extends JavaPlugin implements Listener {
                 }
 
                 String kothName = creatingKoth.get(player.getUniqueId());
-                Location[] locations = new Location[]{pos1.get(player.getUniqueId()), pos2.get(player.getUniqueId())};
+                Location[] locations = {pos1.get(player.getUniqueId()), pos2.get(player.getUniqueId())};
                 koths.put(kothName, locations);
+                activeKoths.put(kothName, false);
+                useChestRewards.put(kothName, true);  // Habilitar cofre por defecto
+                useCommandRewards.put(kothName, true);  // Habilitar comandos por defecto
 
                 // Guardar en la configuración
                 saveKothToConfig(kothName, locations);
 
-                // Limpiar datos temporales
+                player.sendMessage(getMessage("koth-created", "%koth%", kothName));
+
+                // Limpiar datos de selección
+                creatingKoth.remove(player.getUniqueId());
                 pos1.remove(player.getUniqueId());
                 pos2.remove(player.getUniqueId());
-                creatingKoth.remove(player.getUniqueId());
 
-                player.sendMessage(getMessage("koth-created", "%koth%", kothName));
-                return true;
-            }
-
-            if (args[0].equalsIgnoreCase("list")) {
-                if (koths.isEmpty()) {
-                    player.sendMessage(getMessage("no-koths"));
-                    return true;
-                }
-
-                player.sendMessage(getMessage("koth-list-header"));
-                for (String kothName : koths.keySet()) {
-                    Location[] locs = koths.get(kothName);
-                    player.sendMessage(getMessage("koth-list-entry",
-                            "%koth%", kothName,
-                            "%world%", locs[0].getWorld().getName(),
-                            "%pos1%", formatLocation(locs[0]),
-                            "%pos2%", formatLocation(locs[1])));
-                }
                 return true;
             }
 
@@ -643,36 +696,6 @@ public class wKoth extends JavaPlugin implements Listener {
                 player.openInventory(inv);
                 editingChestLoot.put(player.getUniqueId(), kothName);
 
-                return true;
-            }
-
-            // Comando para ver el loot del cofre (solo lectura)
-            if (args[0].equalsIgnoreCase("view-loot")) {
-                // Este comando puede ser usado por cualquier jugador, no necesita verificación de permiso wkoth.admin
-                if (args.length < 2) {
-                    player.sendMessage(ChatColor.RED + "Uso: /koth view-loot <nombre>");
-                    return true;
-                }
-
-                String kothName = args[1].toLowerCase();
-                if (!koths.containsKey(kothName)) {
-                    player.sendMessage(getMessage("koth-not-exist"));
-                    return true;
-                }
-
-                // Abrir un inventario para ver los items (solo lectura)
-                Inventory inv = getServer().createInventory(null, 27, "Loot de " + kothName + " (Solo vista)");
-
-                if (chestContents.containsKey(kothName)) {
-                    inv.setContents(chestContents.get(kothName));
-                    // Registrar que el jugador está viendo este loot (para bloquear interacciones)
-                    viewingLoot.put(player.getUniqueId(), kothName);
-                } else {
-                    player.sendMessage(ChatColor.RED + "No hay loot configurado para este KoTH.");
-                    return true;
-                }
-
-                player.openInventory(inv);
                 return true;
             }
 

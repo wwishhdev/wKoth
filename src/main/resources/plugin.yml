@@ -23,7 +23,6 @@ permissions:
       wkoth.list: true
       wkoth.command: true
       wkoth.chest: true
-      wkoth.viewloot: true
 
   wkoth.create:
     description: Permite crear y editar KoTHs
@@ -69,5 +68,5 @@ permissions:
     default: op
 
   wkoth.viewloot:
-    description: Permite ver el loot de un KoTH
+    description: Permite ver el loot de un KoTH (solo lectura)
     default: true
