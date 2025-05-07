@@ -648,6 +648,7 @@ public class wKoth extends JavaPlugin implements Listener {
 
             // Comando para ver el loot del cofre (solo lectura)
             if (args[0].equalsIgnoreCase("view-loot")) {
+                // Este comando puede ser usado por cualquier jugador, no necesita verificación de permiso wkoth.admin
                 if (args.length < 2) {
                     player.sendMessage(ChatColor.RED + "Uso: /koth view-loot <nombre>");
                     return true;
@@ -1171,6 +1172,19 @@ public class wKoth extends JavaPlugin implements Listener {
             return player != null ? player.getName() : "Nadie";
         }
         return "Nadie";
+    }
+
+    @EventHandler
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player)) return;
+
+        Player player = (Player) event.getWhoClicked();
+
+        // Verificar si el jugador está viendo un loot en modo visualización
+        if (viewingLoot.containsKey(player.getUniqueId())) {
+            // Cancelar cualquier interacción con el inventario
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
