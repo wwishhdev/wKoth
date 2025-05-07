@@ -9,7 +9,6 @@ commands:
   koth:
     description: Comando principal del plugin wKoth
     usage: /<command> [create|set|list|delete|start|stop|reload|set-capture-time|set-duration|set-commands|list-commands|remove-command|set-schedule|set-chest|set-loot|view-loot]
-    permission: wkoth.admin
 
 permissions:
   wkoth.admin:
@@ -24,6 +23,7 @@ permissions:
       wkoth.list: true
       wkoth.command: true
       wkoth.chest: true
+      wkoth.viewloot: true
 
   wkoth.create:
     description: Permite crear y editar KoTHs
@@ -67,3 +67,7 @@ permissions:
   wkoth.chest.loot:
     description: Permite configurar y ver el loot de los cofres
     default: op
+
+  wkoth.viewloot:
+    description: Permite ver el loot de un KoTH
+    default: true
