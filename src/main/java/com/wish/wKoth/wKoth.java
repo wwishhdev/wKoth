@@ -80,24 +80,23 @@ public class wKoth extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        // Guardar config por defecto
+        // Cargar configuración y KoTHs al iniciar el plugin
         saveDefaultConfig();
-
-        // Registrar eventos
         getServer().getPluginManager().registerEvents(this, this);
-
         loadKothConfigurations();
-
-        // Cargar KoTHs guardados
         loadSavedKoths();
-
-        // Cargar configuraciones de cofres
         loadChestData();
-
-        // Iniciar el scheduler
         kothScheduler = new KothScheduler(this);
 
-        // Mostrar el ASCII art
+        // Registrar la expansión de PlaceholderAPI si está disponible
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new KothPlaceholderExpansion(this).register();
+            getLogger().info("PlaceholderAPI encontrado - Registrando placeholders de wKoth");
+        } else {
+            getLogger().warning("PlaceholderAPI no encontrado - Los placeholders no estarán disponibles");
+        }
+
+        // ASCII art y mensaje de inicio...
         getServer().getConsoleSender().sendMessage(ChatColor.GREEN + "\n" +
                 "██╗    ██╗██╗  ██╗ ██████╗ ████████╗██╗  ██╗\n" +
                 "██║    ██║██║ ██╔╝██╔═══██╗╚══██╔══╝██║  ██║\n" +
