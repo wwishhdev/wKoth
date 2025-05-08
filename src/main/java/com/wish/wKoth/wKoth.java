@@ -1047,24 +1047,45 @@ public class wKoth extends JavaPlugin implements Listener {
         kothTasks.put(kothName, task);
 
         // Tarea para verificar continuamente si los jugadores están en la zona
+// Reemplazar la tarea de verificación de jugadores actual (alrededor de la línea 974-997)
+// con esta versión mejorada:
+
         BukkitRunnable playerCheckTask = new BukkitRunnable() {
             @Override
             public void run() {
-                if (!activeKoths.containsKey(kothName) || !activeKoths.get(kothName)) {
+                // Verificar si el KoTH sigue activo
+                if (activeKoths == null || !activeKoths.containsKey(kothName) || !activeKoths.get(kothName)) {
                     this.cancel();
                     return;
                 }
 
-                Player capturingPlayer = capturingPlayers.get(kothName);
-                if (capturingPlayer != null) {
-                    // Verificar si el jugador sigue en el servidor y en la zona
-                    if (!capturingPlayer.isOnline() || !isInKoth(capturingPlayer, kothName)) {
-                        capturingPlayers.remove(kothName);
-                        if (getConfig().getBoolean("settings.broadcast-capture", true)) {
-                            getServer().broadcastMessage(getMessage("player-lost-control",
-                                    "%player%", capturingPlayer.getName(),
-                                    "%koth%", kothName));
+                // Verificar si hay un jugador capturando
+                if (capturingPlayers != null && capturingPlayers.containsKey(kothName)) {
+                    Player capturingPlayer = capturingPlayers.get(kothName);
+
+                    // Verificar que el jugador no sea nulo antes de comprobar su estado
+                    if (capturingPlayer != null) {
+                        try {
+                            // Verificar si el jugador sigue en el servidor y en la zona
+                            if (!capturingPlayer.isOnline() || !isInKoth(capturingPlayer, kothName)) {
+                                capturingPlayers.remove(kothName);
+
+                                // Verificar la configuración antes de enviar el mensaje
+                                if (getConfig() != null &&
+                                        getConfig().getBoolean("settings.broadcast-capture", true)) {
+                                    getServer().broadcastMessage(getMessage("player-lost-control",
+                                            "%player%", capturingPlayer.getName(),
+                                            "%koth%", kothName));
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Si ocurre cualquier excepción, eliminar al jugador de la lista
+                            getLogger().warning("Error al verificar al jugador en KoTH " + kothName + ": " + e.getMessage());
+                            capturingPlayers.remove(kothName);
                         }
+                    } else {
+                        // Si el jugador se volvió nulo, eliminarlo
+                        capturingPlayers.remove(kothName);
                     }
                 }
             }
@@ -1119,21 +1140,36 @@ public class wKoth extends JavaPlugin implements Listener {
     }
 
     private boolean isInKoth(Player player, String kothName) {
-        if (!koths.containsKey(kothName)) return false;
+        // Verificar parámetros
+        if (player == null || kothName == null || !koths.containsKey(kothName)) {
+            return false;
+        }
 
-        Location[] locs = koths.get(kothName);
-        Location loc = player.getLocation();
+        try {
+            Location[] locs = koths.get(kothName);
+            if (locs == null || locs.length < 2 || locs[0] == null || locs[1] == null) {
+                return false;
+            }
 
-        double minX = Math.min(locs[0].getX(), locs[1].getX());
-        double minY = Math.min(locs[0].getY(), locs[1].getY());
-        double minZ = Math.min(locs[0].getZ(), locs[1].getZ());
-        double maxX = Math.max(locs[0].getX(), locs[1].getX());
-        double maxY = Math.max(locs[0].getY(), locs[1].getY());
-        double maxZ = Math.max(locs[0].getZ(), locs[1].getZ());
+            Location loc = player.getLocation();
+            if (loc == null) {
+                return false;
+            }
 
-        return loc.getX() >= minX && loc.getX() <= maxX &&
-                loc.getY() >= minY && loc.getY() <= maxY &&
-                loc.getZ() >= minZ && loc.getZ() <= maxZ;
+            double minX = Math.min(locs[0].getX(), locs[1].getX());
+            double minY = Math.min(locs[0].getY(), locs[1].getY());
+            double minZ = Math.min(locs[0].getZ(), locs[1].getZ());
+            double maxX = Math.max(locs[0].getX(), locs[1].getX());
+            double maxY = Math.max(locs[0].getY(), locs[1].getY());
+            double maxZ = Math.max(locs[0].getZ(), locs[1].getZ());
+
+            return loc.getX() >= minX && loc.getX() <= maxX &&
+                    loc.getY() >= minY && loc.getY() <= maxY &&
+                    loc.getZ() >= minZ && loc.getZ() <= maxZ;
+        } catch (Exception e) {
+            getLogger().warning("Error al verificar si el jugador está en KoTH: " + e.getMessage());
+            return false;
+        }
     }
 
     // Métodos para placeholders
