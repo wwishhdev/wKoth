@@ -38,9 +38,9 @@ public class wKoth extends JavaPlugin implements Listener {
     private HashMap<UUID, String> creatingKoth = new HashMap<>(); // Almacena qué KoTH está creando cada jugador
 
     // Variables para el sistema de captura
-    private HashMap<String, Boolean> activeKoths = new HashMap<>();
-    private HashMap<String, Player> capturingPlayers = new HashMap<>();
-    private HashMap<String, Integer> kothTimers = new HashMap<>();
+    public final Map<String, Boolean> activeKoths = new HashMap<>();
+    public final Map<String, Player> capturingPlayers = new HashMap<>();
+    public final Map<String, Integer> kothTimers = new HashMap<>();
     private HashMap<String, BukkitRunnable> kothTasks = new HashMap<>();
     private int CAPTURE_TIME = 300; // 5 minutos en segundos
     private HashMap<String, Integer> kothSpecificTimes = new HashMap<>();
@@ -212,21 +212,24 @@ public class wKoth extends JavaPlugin implements Listener {
 
         // Cargar tiempos específicos de cada KoTH
         if (getConfig().contains("koths")) {
-            for (String kothName : getConfig().getConfigurationSection("koths").getKeys(false)) {
-                int time = getConfig().getInt("koths." + kothName + ".capture-time", CAPTURE_TIME);
-                int duration = getConfig().getInt("koths." + kothName + ".duration", defaultDuration);
-                boolean cmdRewards = getConfig().getBoolean("koths." + kothName + ".command-rewards",
-                        getConfig().getBoolean("settings.command-rewards-enabled", true));
-                boolean chestRewards = getConfig().getBoolean("koths." + kothName + ".chest-rewards",
-                        getConfig().getBoolean("settings.chest-rewards-enabled", true));
+            ConfigurationSection kothsSection = getConfig().getConfigurationSection("koths");
+            if (kothsSection != null) { // Verificación adicional para evitar NullPointerException
+                for (String kothName : kothsSection.getKeys(false)) {
+                    int time = getConfig().getInt("koths." + kothName + ".capture-time", CAPTURE_TIME);
+                    int duration = getConfig().getInt("koths." + kothName + ".duration", defaultDuration);
+                    boolean cmdRewards = getConfig().getBoolean("koths." + kothName + ".command-rewards",
+                            getConfig().getBoolean("settings.command-rewards-enabled", true));
+                    boolean chestRewards = getConfig().getBoolean("koths." + kothName + ".chest-rewards",
+                            getConfig().getBoolean("settings.chest-rewards-enabled", true));
 
-                kothSpecificTimes.put(kothName, time);
-                kothSpecificDurations.put(kothName, duration);
-                useCommandRewards.put(kothName, cmdRewards);
-                useChestRewards.put(kothName, chestRewards);
+                    kothSpecificTimes.put(kothName, time);
+                    kothSpecificDurations.put(kothName, duration);
+                    useCommandRewards.put(kothName, cmdRewards);
+                    useChestRewards.put(kothName, chestRewards);
 
-                getLogger().info("Cargando configuración para KoTH " + kothName + ": tiempo de captura = " +
-                        time + ", duración = " + duration + ", comandos = " + cmdRewards + ", cofres = " + chestRewards);
+                    getLogger().info("Cargando configuración para KoTH " + kothName + ": tiempo de captura = " +
+                            time + ", duración = " + duration + ", comandos = " + cmdRewards + ", cofres = " + chestRewards);
+                }
             }
         }
     }
@@ -1015,6 +1018,8 @@ public class wKoth extends JavaPlugin implements Listener {
 
         // Tarea principal del KoTH
         BukkitRunnable task = new BukkitRunnable() {
+            private int secondsWithoutCapture = 0; // Contador para mensajes de "nadie capturando"
+
             @Override
             public void run() {
                 int timeLeft = kothTimers.get(kothName);
@@ -1037,6 +1042,18 @@ public class wKoth extends JavaPlugin implements Listener {
                     getServer().broadcastMessage(getMessage("koth-time-left",
                             "%koth%", kothName,
                             "%time%", formatTime(timeLeft)));
+                }
+
+                // Mensaje cuando nadie está capturando el KoTH
+                if (!capturingPlayers.containsKey(kothName) || capturingPlayers.get(kothName) == null) {
+                    secondsWithoutCapture++;
+                    if (secondsWithoutCapture >= 30) { // Cada 30 segundos
+                        getServer().broadcastMessage(getMessage("nobody-capturing",
+                                "%koth%", kothName));
+                        secondsWithoutCapture = 0;
+                    }
+                } else {
+                    secondsWithoutCapture = 0; // Reiniciar contador si alguien está capturando
                 }
 
                 kothTimers.put(kothName, timeLeft - 1);
@@ -1108,7 +1125,7 @@ public class wKoth extends JavaPlugin implements Listener {
         kothTimeoutTasks.put(kothName, timeoutTask);
     }
 
-    private String formatTime(int seconds) {
+    public String formatTime(int seconds) {
         int minutes = seconds / 60;
         int secs = seconds % 60;
         return String.format("%02d:%02d", minutes, secs);

@@ -47,6 +47,15 @@ messages:
 
   # Mensajes del sistema de captura
   koth-started: |
+    &8⬛⬛⬛⬛⬛⬛⬛⬛⬛
+    &8⬛&c⬛⬛⬛&e⬛⬛⬛&8⬛ 
+    &8⬛&c⬛&6⬛⬛&e⬛&a⬛&8⬛ 
+    &8⬛&c⬛&6⬛&f⬛&e⬛&a⬛&8⬛ 
+    &8⬛&c⬛&6⬛&f⬛&e⬛&a⬛&8⬛ 
+    &8⬛&c⬛&6⬛&f⬛&e⬛&a⬛&8⬛ 
+    &8⬛&c⬛&6⬛&f⬛&e⬛&a⬛&8⬛ 
+    &8⬛&c⬛&6⬛&f⬛&e⬛&a⬛&8⬛ 
+    &8⬛⬛⬛⬛⬛⬛⬛⬛⬛
     &6=========================
     &e¡El KoTH '%koth%' ha comenzado!
     &eTiempo de captura: %time%
@@ -76,6 +85,11 @@ messages:
   player-lost-control: |
     &6=========================
     &c¡%player% ha perdido el control del KoTH '%koth%'!
+    &6=========================
+  nobody-capturing: |
+    &6=========================
+    &c¡Nadie está capturando el KoTH '%koth%'!
+    &e¡Dirígete a la zona para capturarlo!
     &6=========================
   position-selected-1: "&aHas seleccionado la primera posición para el KoTH!"
   position-selected-2: "&aHas seleccionado la segunda posición para el KoTH!"
