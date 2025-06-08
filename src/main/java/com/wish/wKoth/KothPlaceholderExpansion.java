@@ -26,7 +26,7 @@ public class KothPlaceholderExpansion extends PlaceholderExpansion {
 
     @Override
     public @NotNull String getVersion() {
-        return "1.0.7";
+        return "1.0.9";
     }
 
     @Override
@@ -96,8 +96,8 @@ public class KothPlaceholderExpansion extends PlaceholderExpansion {
         if (identifier.startsWith("specific_capturing_")) {
             String kothName = identifier.substring("specific_capturing_".length());
             if (plugin.activeKoths.containsKey(kothName) && plugin.activeKoths.get(kothName) && plugin.capturingPlayers.containsKey(kothName)) {
-                Player player = plugin.capturingPlayers.get(kothName);
-                return player != null ? player.getName() : "";
+                Player capturingPlayer = plugin.capturingPlayers.get(kothName); // Cambiado player a capturingPlayer
+                return capturingPlayer != null ? capturingPlayer.getName() : "";
             }
             return ""; // Retornar cadena vacía si no está activo o nadie capturando
         }
